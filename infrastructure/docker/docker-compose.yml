@@ -1,0 +1,42 @@
+# Local development infrastructure for PassaSorte (CLAUDE.md #53 Phase 0,
+# TASK-004). Provides the two stateful dependencies the API/workers need
+# locally: PostgreSQL (source of truth, CLAUDE.md #15) and Redis
+# (cache/rate-limit/transient state only - never source of truth,
+# CLAUDE.md #10, ADR-013). Not used for staging/production, which use
+# managed services (CLAUDE.md #13, #43).
+name: passasorte
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: passasorte
+      POSTGRES_PASSWORD: passasorte
+      POSTGRES_DB: passasorte
+    ports:
+      - "5432:5432"
+    volumes:
+      - passasorte_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U passasorte -d passasorte"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - passasorte_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  passasorte_postgres_data:
+  passasorte_redis_data:

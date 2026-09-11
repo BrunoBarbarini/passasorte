@@ -1,0 +1,22 @@
+// PassaSorte database schema.
+//
+// CLAUDE.md #15: PostgreSQL is source of truth. UUID public IDs
+// (preferably UUIDv7 where stable). Money in integer minor units (BR-035).
+// Never manually change production schema (#15) - always go through a
+// versioned migration (#45), and never edit an already-applied migration.
+//
+// Deliberately has no models yet: the actual domain schema (users,
+// merchants, campaigns, game_rooms, participations, ...) is TASK-009
+// "Database Schema Foundation" in Phase 1 (CLAUDE.md #53/#54), and must be
+// designed from the domain model in CLAUDE.md #8 rather than invented
+// ad hoc. This file exists so `prisma generate`/`migrate` are wired and
+// DATABASE_URL is validated end-to-end in Phase 0.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
