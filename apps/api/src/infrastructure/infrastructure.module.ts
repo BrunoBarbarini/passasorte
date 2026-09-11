@@ -8,14 +8,22 @@ import { PrismaExperienceRepository } from "./prisma/repositories/experience.rep
 import { PrismaCampaignRepository } from "./prisma/repositories/campaign.repository.js";
 import { PrismaAuditLogRepository } from "./prisma/repositories/audit-log.repository.js";
 import { PrismaOutboxRepository } from "./prisma/repositories/outbox.repository.js";
+import { PrismaRoomRepository } from "./prisma/repositories/room.repository.js";
+import { PrismaPositionHoldRepository } from "./prisma/repositories/position-hold.repository.js";
+import { PrismaParticipationRepository } from "./prisma/repositories/participation.repository.js";
+import { PrismaIdempotencyRepository } from "./prisma/repositories/idempotency.repository.js";
 import { SupabaseAuthAdapter } from "./auth/supabase-auth.adapter.js";
 import {
   AUDIT_LOG_PORT,
   AUTH_PORT,
   CAMPAIGN_REPOSITORY,
   EXPERIENCE_REPOSITORY,
+  IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
   OUTBOX_PORT,
+  PARTICIPATION_REPOSITORY,
+  POSITION_HOLD_REPOSITORY,
+  ROOM_REPOSITORY,
   USER_REPOSITORY,
 } from "../common/tokens.js";
 
@@ -40,6 +48,10 @@ const authPortProvider: Provider = {
     { provide: CAMPAIGN_REPOSITORY, useClass: PrismaCampaignRepository },
     { provide: AUDIT_LOG_PORT, useClass: PrismaAuditLogRepository },
     { provide: OUTBOX_PORT, useClass: PrismaOutboxRepository },
+    { provide: ROOM_REPOSITORY, useClass: PrismaRoomRepository },
+    { provide: POSITION_HOLD_REPOSITORY, useClass: PrismaPositionHoldRepository },
+    { provide: PARTICIPATION_REPOSITORY, useClass: PrismaParticipationRepository },
+    { provide: IDEMPOTENCY_PORT, useClass: PrismaIdempotencyRepository },
   ],
   exports: [
     PrismaService,
@@ -50,6 +62,10 @@ const authPortProvider: Provider = {
     CAMPAIGN_REPOSITORY,
     AUDIT_LOG_PORT,
     OUTBOX_PORT,
+    ROOM_REPOSITORY,
+    POSITION_HOLD_REPOSITORY,
+    PARTICIPATION_REPOSITORY,
+    IDEMPOTENCY_PORT,
   ],
 })
 export class InfrastructureModule {}

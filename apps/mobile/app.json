@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "PassaSorte",
+    "slug": "passasorte",
+    "scheme": "passasorte",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "br.com.passasorte.mobile"
+    },
+    "android": {
+      "package": "br.com.passasorte.mobile"
+    }
+  }
+}

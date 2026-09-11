@@ -30,6 +30,10 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/coverage/**",
       "infrastructure/**",
+      // apps/mobile's Metro/Babel config isn't part of any tsconfig
+      // "include" (Expo/Metro loads it directly, not tsc) - can't be
+      // typed-linted like the rest of the repo.
+      "**/babel.config.js",
     ],
   },
 );

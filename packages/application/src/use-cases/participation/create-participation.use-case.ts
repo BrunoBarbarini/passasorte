@@ -20,6 +20,15 @@ export interface CreateParticipationCommand {
  * (CLAUDE.md #58 forbids inventing what those rules are) — this use
  * case only enforces that whatever is configured actually runs before a
  * participation is created.
+ *
+ * A freshly created participation is immediately advanced from CREATED
+ * through RESERVED to AWAITING_REQUIREMENT: there is currently no
+ * external requirement gate to wait on (payment is a LEGAL GATE behind
+ * ENABLE_PAID_PARTICIPATION, off by default — CLAUDE.md #1.9/#22), so
+ * nothing would ever move it there otherwise. This is a mechanical state
+ * transition, not an invented business rule about what those states mean;
+ * once a real requirement (e.g. payment) exists, gating this transition
+ * on it is Phase 6's job, not something to guess at here.
  */
 export class CreateParticipationUseCase {
   constructor(private readonly participationRepository: ParticipationRepository) {}
@@ -47,11 +56,14 @@ export class CreateParticipationUseCase {
       });
     }
 
-    return this.participationRepository.create({
+    const created = await this.participationRepository.create({
       roomId: command.roomId,
       userId: command.userId,
       packageId: command.package.id,
       positions: command.positions,
+      movementAllowance: command.package.movementAllowance,
     });
+    await this.participationRepository.transition(created.id, "RESERVED");
+    return this.participationRepository.transition(created.id, "AWAITING_REQUIREMENT");
   }
 }

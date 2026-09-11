@@ -53,6 +53,7 @@ model User {
 
   profile UserProfile?
   roles   UserRole[]
+  participations Participation[]
 
   @@map("users")
 }
@@ -215,6 +216,7 @@ model Campaign {
 
   merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   experience Experience @relation(fields: [experienceId], references: [id], onDelete: Restrict)
+  rooms      GameRoom[]
 
   @@map("campaigns")
 }
@@ -255,4 +257,122 @@ model OutboxEvent {
 
   @@index([processedAt])
   @@map("outbox_events")
+}
+
+
+// --- Phase 3/4: Room, Position Hold, Participation -------------------------
+//
+// CLAUDE.md #7 GameRoom state machine:
+// DRAFT -> OPEN -> ENTRY_LOCKED -> RUNNING -> FINAL_LOCK -> RESOLVING -> COMPLETED
+//   \_______________________________________________________________> CANCELLED
+enum GameRoomStatus {
+  DRAFT
+  OPEN
+  ENTRY_LOCKED
+  RUNNING
+  FINAL_LOCK
+  RESOLVING
+  COMPLETED
+  CANCELLED
+}
+
+enum PositionHoldStatus {
+  ACTIVE
+  RELEASED
+  COMMITTED
+  EXPIRED
+}
+
+/// CLAUDE.md #7 Participation state machine — no CANCELLED branch exists
+/// (see packages/domain/src/participation/participation-state-machine.ts).
+enum ParticipationStatus {
+  CREATED
+  RESERVED
+  AWAITING_REQUIREMENT
+  CONFIRMED
+  ACTIVE
+  LOCKED
+  RESOLVED
+  WON
+  NOT_WON
+  COMPLETED
+}
+
+/// FR-018..FR-021, BR-003/BR-004/BR-005. `holdTtlMs` and
+/// `participationPackages` are per-room configuration (CLAUDE.md #56/#58 —
+/// never a global default); `gameConfig` is the frozen snapshot from
+/// Phase 2 (BR-024).
+model GameRoom {
+  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId            String         @map("campaign_id") @db.Uuid
+  capacity              Int
+  gameConfig            Json           @map("game_config")
+  holdTtlMs             Int            @map("hold_ttl_ms")
+  participationPackages Json           @map("participation_packages")
+  status                GameRoomStatus @default(DRAFT)
+  createdAt             DateTime       @default(now()) @map("created_at")
+  cancelledAt           DateTime?      @map("cancelled_at")
+  cancellationReason    String?        @map("cancellation_reason")
+
+  campaign       Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  positionHolds  PositionHold[]
+  participations Participation[]
+
+  @@map("game_rooms")
+}
+
+/// FR-022..FR-026. One row per room+position (BR-010: the unique
+/// constraint below is what a Postgres adapter uses to guarantee atomic
+/// acquisition — see PrismaPositionHoldRepository.tryHold). ACTIVE holds
+/// expire via `expiresAt`; CONFIRMED participations convert their hold to
+/// COMMITTED (FR-026), which never expires.
+model PositionHold {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId    String             @map("room_id") @db.Uuid
+  position  Int
+  holderRef String             @map("holder_ref")
+  status    PositionHoldStatus @default(ACTIVE)
+  heldAt    DateTime           @map("held_at")
+  expiresAt DateTime           @map("expires_at")
+
+  room GameRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, position])
+  @@map("position_holds")
+}
+
+/// FR-027..FR-030, BR-007/BR-008/BR-020. `packageId` references a package
+/// inside the room's `participationPackages` JSON, not a separate table —
+/// no backlog task defines a standalone package admin surface yet.
+/// `positions` uses a native Postgres int array (BR-008: need not be
+/// contiguous). Movement allowance (BR-020) is tracked directly here —
+/// see @passasorte/domain's toMovementAllocation().
+model Participation {
+  id                     String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId                 String              @map("room_id") @db.Uuid
+  userId                 String              @map("user_id") @db.Uuid
+  packageId              String              @map("package_id")
+  positions              Int[]
+  status                 ParticipationStatus @default(CREATED)
+  movementAllowanceTotal Int                 @map("movement_allowance_total")
+  movementAllowanceUsed  Int                 @default(0) @map("movement_allowance_used")
+  createdAt              DateTime            @default(now()) @map("created_at")
+  updatedAt              DateTime            @updatedAt @map("updated_at")
+
+  room GameRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, roomId])
+  @@map("participations")
+}
+
+/// Generic dedupe store for FR-038 Idempotent Movement Submission / BR-037
+/// idempotent financial commands — a unique-constraint violation on `key`
+/// is how PrismaIdempotencyRepository.record() detects a duplicate.
+model IdempotencyKey {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("idempotency_keys")
 }

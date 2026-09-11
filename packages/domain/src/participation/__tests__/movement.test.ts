@@ -42,6 +42,8 @@ function buildParticipation(overrides: Partial<Participation> = {}): Participati
     packageId: "pkg-1",
     positions: [{ participationId: "p1", position: 5 }],
     status: "ACTIVE",
+    movementAllowanceTotal: 3,
+    movementAllowanceUsed: 0,
     createdAt: new Date(),
     ...overrides,
   };

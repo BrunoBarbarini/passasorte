@@ -43,3 +43,30 @@ export function assertValidParticipationPackage(pkg: ParticipationPackage): void
     );
   }
 }
+
+/** Validates a room's whole package list: each package individually, plus unique ids. */
+export function assertValidParticipationPackages(packages: readonly ParticipationPackage[]): void {
+  if (packages.length === 0) {
+    throw new InvalidParticipationPackageError(
+      "A sala precisa de ao menos um pacote de participação configurado.",
+    );
+  }
+  const seenIds = new Set<string>();
+  for (const pkg of packages) {
+    assertValidParticipationPackage(pkg);
+    if (seenIds.has(pkg.id)) {
+      throw new InvalidParticipationPackageError(
+        `O id de pacote "${pkg.id}" está duplicado na sala.`,
+      );
+    }
+    seenIds.add(pkg.id);
+  }
+}
+
+/** Looks up a package by id within a room's configured list, or null if absent. */
+export function findParticipationPackage(
+  packages: readonly ParticipationPackage[],
+  packageId: string,
+): ParticipationPackage | null {
+  return packages.find((pkg) => pkg.id === packageId) ?? null;
+}

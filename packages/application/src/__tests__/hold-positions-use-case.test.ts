@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { GameConfigSnapshot, GameRoom, Position, PositionHold } from "@passasorte/domain";
 import { HoldPositionsUseCase } from "../use-cases/room/hold-positions.use-case.js";
-import type { RoomRepository } from "../ports/room-repository.port.js";
+import type { CreateRoomInput, RoomRepository } from "../ports/room-repository.port.js";
 import type {
   PositionHoldRepository,
   TryHoldInput,
@@ -24,6 +24,10 @@ function buildRoom(overrides: Partial<GameRoom> = {}): GameRoom {
     campaignId: "campaign-1",
     capacity: 10,
     gameConfig: GAME_CONFIG,
+    holdTtlMs: 60_000,
+    participationPackages: [
+      { id: "pkg-1", positionCount: 1, movementAllowance: 3, eligibilityRules: [] },
+    ],
     status: "OPEN",
     createdAt: new Date(),
     cancelledAt: null,
@@ -39,13 +43,17 @@ class InMemoryRoomRepository implements RoomRepository {
     return id === this.room.id ? this.room : null;
   }
 
-  async create(): Promise<GameRoom> {
+  async create(_input: CreateRoomInput): Promise<GameRoom> {
     throw new Error("not needed in this test");
   }
 
   async transition(_id: string, status: GameRoom["status"]): Promise<GameRoom> {
     this.room = { ...this.room, status };
     return this.room;
+  }
+
+  async listByCampaignId(campaignId: string): Promise<readonly GameRoom[]> {
+    return campaignId === this.room.campaignId ? [this.room] : [];
   }
 }
 
@@ -102,6 +110,18 @@ class InMemoryPositionHoldRepository implements PositionHoldRepository {
     }
     return hold;
   }
+
+  async commitHold(roomId: string, position: Position): Promise<void> {
+    const key = this.key(roomId, position);
+    const hold = this.holdsByKey.get(key);
+    if (hold && hold.status === "ACTIVE") {
+      this.holdsByKey.set(key, { ...hold, status: "COMMITTED" });
+    }
+  }
+
+  async listForRoom(roomId: string): Promise<readonly PositionHold[]> {
+    return [...this.holdsByKey.values()].filter((h) => h.roomId === roomId);
+  }
 }
 
 describe("HoldPositionsUseCase (FR-022..FR-024)", () => {
@@ -114,7 +134,6 @@ describe("HoldPositionsUseCase (FR-022..FR-024)", () => {
       roomId: "room-1",
       positions: [1, 2, 3],
       holderRef: "user-1",
-      holdPolicy: { ttlMs: 60_000 },
     });
     expect(holds.map((h) => h.position)).toEqual([1, 2, 3]);
   });
@@ -125,12 +144,7 @@ describe("HoldPositionsUseCase (FR-022..FR-024)", () => {
       new InMemoryPositionHoldRepository(),
     );
     await expect(
-      useCase.execute({
-        roomId: "room-1",
-        positions: [1],
-        holderRef: "u1",
-        holdPolicy: { ttlMs: 1000 },
-      }),
+      useCase.execute({ roomId: "room-1", positions: [1], holderRef: "u1" }),
     ).rejects.toThrow(ConflictError);
   });
 
@@ -142,7 +156,6 @@ describe("HoldPositionsUseCase (FR-022..FR-024)", () => {
         roomId: "room-1",
         positions: [5],
         holderRef: `user-${i}`,
-        holdPolicy: { ttlMs: 60_000 },
       }),
     );
 
@@ -164,12 +177,7 @@ describe("HoldPositionsUseCase (FR-022..FR-024)", () => {
 
     const useCase = new HoldPositionsUseCase(roomRepository, holdRepository);
     await expect(
-      useCase.execute({
-        roomId: "room-1",
-        positions: [1, 2],
-        holderRef: "user-1",
-        holdPolicy: { ttlMs: 60_000 },
-      }),
+      useCase.execute({ roomId: "room-1", positions: [1, 2], holderRef: "user-1" }),
     ).rejects.toThrow(ConflictError);
 
     const positionOneHold = await holdRepository.findActiveHold("room-1", 1, new Date());

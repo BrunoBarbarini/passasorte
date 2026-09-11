@@ -5,9 +5,18 @@
  * capacity default) and its own frozen game configuration snapshot
  * (BR-024, see @passasorte/domain's game/game-config.js), immutable for
  * as long as the room is active.
+ *
+ * `holdTtlMs` (CLAUDE.md #56 Technical-HIGH: hold TTL is TBD) and
+ * `participationPackages` (FR-029, CLAUDE.md #58: eligibility/packages
+ * are TBD) are stored per-room rather than as a global default, exactly
+ * like gameConfig — CLAUDE.md #42/#58 explicitly forbid promoting a
+ * business constant like this into global process/env configuration; it
+ * must be configurable per-room data, decided by whoever creates the
+ * room, never assumed by this codebase.
  */
 import type { GameConfigSnapshot } from "../game/game-config.js";
 import type { RoomStatus } from "./room-state-machine.js";
+import type { ParticipationPackage } from "../participation/participation-package.js";
 
 export type { RoomStatus } from "./room-state-machine.js";
 
@@ -16,6 +25,10 @@ export interface GameRoom {
   readonly campaignId: string;
   readonly capacity: number;
   readonly gameConfig: GameConfigSnapshot;
+  /** CLAUDE.md #56: hold TTL is TBD — always caller-supplied per room, never hard-coded. */
+  readonly holdTtlMs: number;
+  /** FR-029: the packages a participant may enter this room with. */
+  readonly participationPackages: readonly ParticipationPackage[];
   readonly status: RoomStatus;
   readonly createdAt: Date;
   readonly cancelledAt: Date | null;

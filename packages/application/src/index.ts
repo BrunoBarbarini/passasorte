@@ -35,6 +35,7 @@ export * from "./use-cases/campaign/transition-campaign.use-case.js";
 export * from "./use-cases/campaign/list-public-campaigns.use-case.js";
 
 export * from "./use-cases/room/hold-positions.use-case.js";
+export * from "./use-cases/room/create-room.use-case.js";
 
 export * from "./use-cases/participation/create-participation.use-case.js";
 export * from "./use-cases/participation/confirm-participation.use-case.js";

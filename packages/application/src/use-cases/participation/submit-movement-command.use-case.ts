@@ -1,8 +1,9 @@
 import {
   assertValidMovementSubmission,
   spendMovement,
-  type MovementAllocation,
+  toMovementAllocation,
   type MovementCommand,
+  type Participation,
 } from "@passasorte/domain";
 import type { ParticipationRepository } from "../../ports/participation-repository.port.js";
 import type { IdempotencyPort } from "../../ports/idempotency.port.js";
@@ -11,13 +12,12 @@ import { ConflictError, NotFoundError } from "../../errors.js";
 export interface SubmitMovementCommandInput {
   participationId: string;
   command: MovementCommand;
-  allocation: MovementAllocation;
   /** Caller-supplied key so a retried/duplicated request is a no-op (FR-038). */
   idempotencyKey: string;
 }
 
 export interface SubmitMovementCommandResult {
-  allocation: MovementAllocation;
+  participation: Participation;
 }
 
 /**
@@ -46,6 +46,11 @@ export class SubmitMovementCommandUseCase {
       throw new ConflictError("Este movimento já foi submetido anteriormente.");
     }
 
-    return { allocation: spendMovement(input.allocation) };
+    const newAllocation = spendMovement(toMovementAllocation(participation));
+    const updated = await this.participationRepository.updateMovementAllocation(
+      participation.id,
+      newAllocation,
+    );
+    return { participation: updated };
   }
 }

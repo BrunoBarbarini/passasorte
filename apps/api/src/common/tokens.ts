@@ -10,3 +10,7 @@ export const EXPERIENCE_REPOSITORY = Symbol("ExperienceRepository");
 export const CAMPAIGN_REPOSITORY = Symbol("CampaignRepository");
 export const AUDIT_LOG_PORT = Symbol("AuditLogPort");
 export const OUTBOX_PORT = Symbol("OutboxPort");
+export const ROOM_REPOSITORY = Symbol("RoomRepository");
+export const POSITION_HOLD_REPOSITORY = Symbol("PositionHoldRepository");
+export const PARTICIPATION_REPOSITORY = Symbol("ParticipationRepository");
+export const IDEMPOTENCY_PORT = Symbol("IdempotencyPort");
