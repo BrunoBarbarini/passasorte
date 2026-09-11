@@ -631,7 +631,7 @@ Delete/anonymize allowed data while retaining mandatory financial/audit records 
 - **BR-045:** Cancellation is terminal.
 - **BR-046:** Critical history is immutable.
 - **BR-047:** Persist timestamps in UTC and store campaign IANA timezone.
-- **BR-048:** ASSUMPTION: MVP locale pt-BR and BRL.
+- **BR-048:** FACT (explicit product decision, 2026-09-11): locale is pt-BR and currency BRL. All user-facing product surfaces (API error messages, validation messages, notification copy, backoffice UI, mobile/web UI) must be written in Brazilian Portuguese. Code identifiers, comments, commit messages and internal docs (CLAUDE.md, ADRs) stay in English.
 
 ---
 
@@ -906,7 +906,7 @@ Do not implement Stage 4 complexity in MVP.
 - Database: PostgreSQL
 - ORM: Prisma, with selective raw SQL for advanced locking/index cases
 - Validation: Zod
-- Authentication: managed OIDC/Firebase Authentication or equivalent
+- Authentication: Supabase Auth (managed) — DECISION (2026-09-11), see ADR-008. No longer an open TBD.
 - Storage: Google Cloud Storage
 - Queue: Google Cloud Pub/Sub + Cloud Tasks
 - Cache: Redis / Memorystore
@@ -1057,6 +1057,8 @@ Backoffice APIs must cover merchants, experiences, campaigns, rooms, users, paym
 # 17. Authentication & Authorization
 
 Use managed identity plus internal RBAC.
+
+**DECISION (2026-09-11):** the managed identity provider is **Supabase Auth** (ADR-008, ACCEPTED). PassaSorte's API never re-implements credential storage, password hashing or MFA - it verifies the Supabase-issued JWT on every request (see `AuthPort` in `@passasorte/application` and its Supabase adapter in `apps/api`) and mirrors the authenticated identity into the local `users` table on first sight, so authorization (RBAC, roles) stays entirely PassaSorte's own data, not Supabase's.
 
 Roles:
 
@@ -1886,7 +1888,7 @@ TASK-070 Production Readiness Review
 | ADR-005 | REST/OpenAPI                        | PROPOSED          |
 | ADR-006 | Expo React Native                   | PROPOSED          |
 | ADR-007 | Next.js backoffice/web              | PROPOSED          |
-| ADR-008 | Managed identity                    | PROPOSED          |
+| ADR-008 | Managed identity (Supabase Auth)     | ACCEPTED          |
 | ADR-009 | GCP managed runtime                 | PROPOSED          |
 | ADR-010 | Transactional outbox                | PROPOSED          |
 | ADR-011 | Versioned GameEngine                | ACCEPTED STRATEGY |
@@ -1942,7 +1944,6 @@ TASK-070 Production Readiness Review
 
 ## Technical — HIGH
 
-- auth provider;
 - payment provider;
 - final realtime transport;
 - exact engine V1;
