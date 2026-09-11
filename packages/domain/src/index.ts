@@ -12,8 +12,13 @@
  * Movement effect, Sorte progression and winner selection are TBD
  * business rules (CLAUDE.md #58); only pluggable strategy interfaces
  * plus explicitly-labeled SIMULATION_ONLY_* placeholders are exported —
- * these must never be treated as shipped product rules. Payments/Benefits
- * land in later phases (CLAUDE.md #53).
+ * these must never be treated as shipped product rules.
+ *
+ * Phase 3 scope: Rooms, position holds, participation, eligibility and
+ * movement allocation. Eligibility rules and hold TTL are likewise TBD
+ * (CLAUDE.md #58/#56) — only the pluggable/configurable seams are
+ * exported here, never concrete defaults. Payments/Benefits land in
+ * later phases (CLAUDE.md #53).
  */
 export * from "./identity/role.js";
 export * from "./identity/user.entity.js";
@@ -32,3 +37,12 @@ export * from "./game/game-config.js";
 export * from "./game/winner-selection.js";
 export * from "./game/game-engine.js";
 export * from "./game/game-simulator.js";
+export * from "./room/room-state-machine.js";
+export * from "./room/room.entity.js";
+export * from "./room/position-hold.entity.js";
+export * from "./participation/participation-state-machine.js";
+export * from "./participation/participation.entity.js";
+export * from "./participation/eligibility.js";
+export * from "./participation/participation-package.js";
+export * from "./participation/movement-allocation.entity.js";
+export * from "./participation/movement-command-submission.js";
