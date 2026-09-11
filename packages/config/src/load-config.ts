@@ -20,6 +20,9 @@ export interface AppConfig {
   redis: {
     url: string;
   };
+  supabase: {
+    url: string;
+  };
   logging: {
     level: Env["LOG_LEVEL"];
   };
@@ -60,6 +63,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     redis: {
       url: env.REDIS_URL,
+    },
+    supabase: {
+      url: env.SUPABASE_URL,
     },
     logging: {
       level: env.LOG_LEVEL,

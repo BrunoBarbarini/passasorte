@@ -69,6 +69,11 @@ export const EnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
 
+  /// Supabase project URL (ADR-008). The API derives the Auth JWKS
+  /// endpoint from it (`${SUPABASE_URL}/auth/v1/.well-known/jwks.json`)
+  /// to verify access tokens - no shared secret is stored server-side.
+  SUPABASE_URL: z.string().url(),
+
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
 
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),

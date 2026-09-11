@@ -4,6 +4,7 @@ import { loadConfig, ConfigValidationError } from "../load-config.js";
 const baseEnv = {
   DATABASE_URL: "postgresql://user:pass@localhost:5432/passasorte",
   REDIS_URL: "redis://localhost:6379",
+  SUPABASE_URL: "https://example.supabase.co",
 };
 
 describe("loadConfig", () => {

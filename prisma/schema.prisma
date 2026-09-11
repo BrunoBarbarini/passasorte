@@ -1,16 +1,26 @@
 // PassaSorte database schema.
 //
 // CLAUDE.md #15: PostgreSQL is source of truth. UUID public IDs
-// (preferably UUIDv7 where stable). Money in integer minor units (BR-035).
+// (preferably UUIDv7 where stable) — ids use Postgres' built-in
+// gen_random_uuid() (UUIDv4) for now; swapping the generation strategy to
+// UUIDv7 later is a non-breaking storage-format change (still a `uuid`
+// column), not a schema change, so it is deferred rather than adding a
+// custom generator ahead of need. Money in integer minor units (BR-035) —
+// not relevant yet, no payment models exist before Phase 6.
+//
+// Scope: Phase 1 — Identity + Partner + Campaign (CLAUDE.md #53), plus the
+// two cross-cutting tables Phase 1 already needs to operate correctly:
+// audit_logs (CLAUDE.md #34 — campaign approval/publication/cancellation
+// and role grants are mandatory audit actions) and outbox_events (ADR-010
+// — publishing/cancelling a campaign must reliably trigger notifications
+// later without losing the event if the DB commit and the queue publish
+// aren't atomic). Game, payments, benefits, fulfillment, notifications
+// and support tables are out of scope until the phase that needs them
+// (CLAUDE.md #53) — adding them now would mean guessing at fields for
+// rules that are still TBD (CLAUDE.md #58), which CLAUDE.md forbids.
+//
 // Never manually change production schema (#15) - always go through a
 // versioned migration (#45), and never edit an already-applied migration.
-//
-// Deliberately has no models yet: the actual domain schema (users,
-// merchants, campaigns, game_rooms, participations, ...) is TASK-009
-// "Database Schema Foundation" in Phase 1 (CLAUDE.md #53/#54), and must be
-// designed from the domain model in CLAUDE.md #8 rather than invented
-// ad hoc. This file exists so `prisma generate`/`migrate` are wired and
-// DATABASE_URL is validated end-to-end in Phase 0.
 
 generator client {
   provider = "prisma-client-js"
@@ -19,4 +29,230 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+// --- Identity -----------------------------------------------------------
+
+/// A PassaSorte account. Identity/credentials/MFA are owned by Supabase
+/// Auth (ADR-008); this row mirrors the minimum needed to relate
+/// PassaSorte data (participations, roles, audit trail) to a person, and
+/// is created/updated on first verified request (see AuthPort in
+/// @passasorte/application).
+model User {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  /// Supabase Auth user id (auth.users.id) — the join key back to the
+  /// identity provider. Never store a password/credential here.
+  supabaseUserId String    @unique @map("supabase_user_id")
+  email          String    @unique
+  /// FR-006 account deletion: null while active; set instead of a hard
+  /// delete so participation/audit history referencing this user is
+  /// preserved per legal retention requirements (CLAUDE.md #19).
+  deletedAt      DateTime? @map("deleted_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  profile UserProfile?
+  roles   UserRole[]
+
+  @@map("users")
+}
+
+/// Editable profile fields (FR-005), separate from the identity row so
+/// auth-related and profile-related data can evolve independently.
+model UserProfile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String   @unique @map("user_id") @db.Uuid
+  displayName String?  @map("display_name")
+  phone       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+/// Fixed role set from CLAUDE.md #17. Not admin-configurable/extensible
+/// data (no separate `roles` table) because CLAUDE.md defines this as a
+/// closed list, not a product feature to manage — extending it is a
+/// CLAUDE.md change, not a runtime one.
+enum RoleKey {
+  PARTICIPANT
+  MERCHANT_OPERATOR
+  SUPPORT
+  OPERATOR
+  FINANCE
+  COMPLIANCE
+  ADMIN
+}
+
+/// A granted role. CLAUDE.md #34: role changes are a mandatory audit
+/// action — grantedByUserId records who granted it (nullable only for
+/// the very first bootstrap admin, which has no granting user).
+model UserRole {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @map("user_id") @db.Uuid
+  role          RoleKey
+  grantedAt     DateTime @default(now()) @map("granted_at")
+  grantedByUserId String? @map("granted_by_user_id") @db.Uuid
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("user_roles")
+}
+
+// --- Partner --------------------------------------------------------------
+
+enum MerchantStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// FR-010 Merchant Management. Merchant self-service is not required for
+/// MVP (CLAUDE.md #1.7) — merchants are created/managed by PassaSorte
+/// operators via the backoffice.
+model Merchant {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legalName   String         @map("legal_name")
+  displayName String         @map("display_name")
+  status      MerchantStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  locations   MerchantLocation[]
+  experiences Experience[]
+  campaigns   Campaign[]
+
+  @@map("merchants")
+}
+
+/// FR-011 Merchant Locations — one-to-many per merchant.
+model MerchantLocation {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId String   @map("merchant_id") @db.Uuid
+  label      String
+  addressLine1 String @map("address_line1")
+  addressLine2 String? @map("address_line2")
+  city       String
+  state      String
+  postalCode String   @map("postal_code")
+  country    String   @default("BR")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("merchant_locations")
+}
+
+// --- Catalog ----------------------------------------------------------------
+
+enum ExperienceStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// FR-012 Experience Management. A Campaign snapshots the Experience at
+/// publication time (BR-002) into Campaign.experienceSnapshot, so later
+/// edits here never retroactively change a published campaign.
+model Experience {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId  String           @map("merchant_id") @db.Uuid
+  title       String
+  description String
+  status      ExperienceStatus @default(DRAFT)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  merchant  Merchant   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  campaigns Campaign[]
+
+  @@map("experiences")
+}
+
+// --- Campaign ---------------------------------------------------------------
+
+/// CLAUDE.md #7 Campaign state machine:
+/// DRAFT -> IN_REVIEW -> APPROVED -> SCHEDULED -> PUBLISHED -> ENDED
+///   \_______________________________________________________> CANCELLED
+enum CampaignStatus {
+  DRAFT
+  IN_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  ENDED
+  CANCELLED
+}
+
+/// FR-013..FR-017. BR-045: cancellation is terminal. BR-047: timestamps
+/// are stored in UTC (Prisma DateTime/timestamptz); `timezone` records the
+/// campaign's own IANA timezone for display/scheduling purposes.
+model Campaign {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId   String         @map("merchant_id") @db.Uuid
+  experienceId String         @map("experience_id") @db.Uuid
+  title        String
+  status       CampaignStatus @default(DRAFT)
+  timezone     String         @default("America/Sao_Paulo")
+
+  /// BR-002: frozen copy of the Experience as it was when this campaign
+  /// was published (FR-016) — never re-read from `experiences` after
+  /// that point.
+  experienceSnapshot Json?    @map("experience_snapshot")
+
+  scheduledStartAt DateTime? @map("scheduled_start_at")
+  scheduledEndAt   DateTime? @map("scheduled_end_at")
+  publishedAt      DateTime? @map("published_at")
+  endedAt          DateTime? @map("ended_at")
+  cancelledAt      DateTime? @map("cancelled_at")
+  cancellationReason String? @map("cancellation_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  merchant   Merchant   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  experience Experience @relation(fields: [experienceId], references: [id], onDelete: Restrict)
+
+  @@map("campaigns")
+}
+
+// --- Cross-cutting (Audit / Outbox) -----------------------------------------
+
+/// CLAUDE.md #34: append-only, separate from application logs. Every
+/// mandatory audit action (role grants, merchant changes, campaign
+/// approval/publication/cancellation, ...) writes one row here in the
+/// same transaction as the change it records.
+model AuditLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId  String?  @map("actor_user_id") @db.Uuid
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String   @map("entity_id") @db.Uuid
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+/// ADR-010 transactional outbox: a critical DB mutation and its async
+/// side effect (e.g. campaign published -> notify participants) are
+/// written in one transaction; a worker later reads unprocessed rows and
+/// dispatches them, guaranteeing at-least-once delivery consistent with
+/// the DB state.
+model OutboxEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aggregateType String    @map("aggregate_type")
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  eventType     String    @map("event_type")
+  payload       Json
+  createdAt     DateTime  @default(now()) @map("created_at")
+  processedAt   DateTime? @map("processed_at")
+  attempts      Int       @default(0)
+
+  @@index([processedAt])
+  @@map("outbox_events")
 }

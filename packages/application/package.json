@@ -16,11 +16,14 @@
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo"
   },
   "devDependencies": {
     "typescript": "^5.7.2",
     "vitest": "^2.1.5"
+  },
+  "dependencies": {
+    "@passasorte/domain": "workspace:*"
   }
 }
