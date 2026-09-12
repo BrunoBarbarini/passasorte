@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars and fill in real values before ever running
+# `terraform plan`/`apply` here. Never commit the real terraform.tfvars
+# (add it to .gitignore) since it may end up carrying project-specific
+# values that shouldn't be public.
+
+gcp_project_id = "REPLACE-WITH-REAL-PROJECT-ID"
+gcp_region     = "southamerica-east1"
+
+# Produced by pushing apps/api and apps/worker images to the
+# artifact_registry_repository output of the passasorte-stack module.
+api_image    = "southamerica-east1-docker.pkg.dev/REPLACE-WITH-REAL-PROJECT-ID/passasorte-production-images/api:REPLACE-WITH-REAL-TAG"
+worker_image = "southamerica-east1-docker.pkg.dev/REPLACE-WITH-REAL-PROJECT-ID/passasorte-production-images/worker:REPLACE-WITH-REAL-TAG"
+
+# Real Cloud Monitoring notification channel IDs, once provisioned.
+# Example: ["projects/REPLACE-WITH-REAL-PROJECT-ID/notificationChannels/1234567890"]
+alert_notification_channels = []

@@ -1,0 +1,10 @@
+# Copy to terraform.tfvars and fill in real values before ever running
+# `terraform plan`/`apply` here.
+
+gcp_project_id = "REPLACE-WITH-REAL-PROJECT-ID"
+gcp_region     = "southamerica-east1"
+
+api_image    = "southamerica-east1-docker.pkg.dev/REPLACE-WITH-REAL-PROJECT-ID/passasorte-staging-images/api:REPLACE-WITH-REAL-TAG"
+worker_image = "southamerica-east1-docker.pkg.dev/REPLACE-WITH-REAL-PROJECT-ID/passasorte-staging-images/worker:REPLACE-WITH-REAL-TAG"
+
+alert_notification_channels = []

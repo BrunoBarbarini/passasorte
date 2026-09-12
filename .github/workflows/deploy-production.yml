@@ -1,0 +1,87 @@
+name: Deploy to production (TASK-066)
+
+# Manual-only, on purpose: this repository has no real GCP project, no
+# Workload Identity Federation binding, and no production secrets
+# configured (see infrastructure/terraform/production/ - never applied).
+# This workflow is written to be correct and reviewable, and is gated so
+# it can never fire by accident:
+#   - workflow_dispatch only (no push/schedule trigger).
+#   - the `production` GitHub Environment, which the repo owner must
+#     create and attach real protection rules / secrets to before this
+#     can succeed - until then every run fails at the "Authenticate to
+#     Google Cloud" step, loudly, rather than silently no-opping.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Tag to build and deploy for both apps/api and apps/worker (e.g. a git SHA)."
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Build, push and deploy apps/api + apps/worker
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write # required for Workload Identity Federation
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          # These secrets do not exist yet - they must be created against
+          # the `production` GitHub Environment once a real GCP project,
+          # service account and Workload Identity Pool exist. Never
+          # invented/defaulted here.
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ secrets.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Build and push apps/api image
+        run: |
+          docker build -f apps/api/Dockerfile \
+            -t "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/api:${{ inputs.image_tag }}" .
+          docker push "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/api:${{ inputs.image_tag }}"
+
+      - name: Build and push apps/worker image
+        run: |
+          docker build -f apps/worker/Dockerfile \
+            -t "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/worker:${{ inputs.image_tag }}" .
+          docker push "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/worker:${{ inputs.image_tag }}"
+
+      - name: Deploy apps/api to Cloud Run
+        run: |
+          gcloud run deploy passasorte-production-api \
+            --image "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/api:${{ inputs.image_tag }}" \
+            --region "${{ secrets.GCP_REGION }}" \
+            --project "${{ secrets.GCP_PROJECT_ID }}"
+
+      - name: Deploy apps/worker to Cloud Run
+        run: |
+          gcloud run deploy passasorte-production-worker \
+            --image "${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/passasorte-production-images/worker:${{ inputs.image_tag }}" \
+            --region "${{ secrets.GCP_REGION }}" \
+            --project "${{ secrets.GCP_PROJECT_ID }}"
+
+# NOTA HONESTA: este workflow nunca foi executado - não há
+# GCP_WORKLOAD_IDENTITY_PROVIDER, GCP_DEPLOY_SERVICE_ACCOUNT,
+# GCP_PROJECT_ID nem GCP_REGION configurados como secrets neste
+# repositório, nem existe o GitHub Environment "production" ainda. Os
+# nomes de serviço Cloud Run aqui (`passasorte-production-api`,
+# `passasorte-production-worker`) assumem que
+# infrastructure/terraform/production foi aplicado primeiro (ver
+# name_prefix em modules/passasorte-stack/main.tf) - se os nomes
+# divergirem no dia da aplicação real, este arquivo precisa ser
+# atualizado antes do primeiro uso real.
+# apps/api/Dockerfile e apps/worker/Dockerfile também ainda não existem
+# no repositório neste momento (não há build de container nesta fase) -
+# precisam ser criados antes que este workflow possa rodar de verdade.

@@ -20,7 +20,10 @@
     "db:generate": "prisma generate --schema=prisma/schema.prisma",
     "db:migrate": "prisma migrate dev --schema=prisma/schema.prisma",
     "db:deploy": "prisma migrate deploy --schema=prisma/schema.prisma",
-    "db:studio": "prisma studio --schema=prisma/schema.prisma"
+    "db:studio": "prisma studio --schema=prisma/schema.prisma",
+    "load-test": "node scripts/load-test/campaigns-read.js",
+    "pilot-simulation": "tsx scripts/pilot-simulation/run.ts",
+    "backup:validate": "bash scripts/ops/validate-backup-restore.sh"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",
@@ -31,6 +34,8 @@
     "typescript": "^5.7.2",
     "typescript-eslint": "^8.15.0",
     "prisma": "^5.22.0",
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "autocannon": "^7.15.0",
+    "tsx": "^4.19.2"
   }
 }
