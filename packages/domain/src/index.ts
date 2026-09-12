@@ -19,6 +19,13 @@
  * (CLAUDE.md #58/#56) — only the pluggable/configurable seams are
  * exported here, never concrete defaults. Payments/Benefits land in
  * later phases (CLAUDE.md #53).
+ *
+ * Phase 5 scope: Scheduled Game Operations — per-room operations pacing
+ * (room-operations-config.js) and in-app Notification/NotificationPreference
+ * records. Movement/Sorte/winner/final-submission rules remain the SAME
+ * pluggable seams from Phases 2/3 (nothing about them is decided here);
+ * Phase 5 only adds what is needed to actually RUN those seams against
+ * persisted state and record who was notified.
  */
 export * from "./identity/role.js";
 export * from "./identity/user.entity.js";
@@ -32,6 +39,7 @@ export * from "./game/sorte-progression.js";
 export * from "./game/temperature.js";
 export * from "./game/movement.js";
 export * from "./game/final-lock.js";
+export * from "./game/room-operations-config.js";
 export * from "./game/randomness-commitment.js";
 export * from "./game/game-config.js";
 export * from "./game/winner-selection.js";
@@ -46,3 +54,4 @@ export * from "./participation/eligibility.js";
 export * from "./participation/participation-package.js";
 export * from "./participation/movement-allocation.entity.js";
 export * from "./participation/movement-command-submission.js";
+export * from "./notification/notification.entity.js";

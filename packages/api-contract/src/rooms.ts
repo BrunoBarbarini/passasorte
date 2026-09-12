@@ -12,6 +12,9 @@ const TemperatureBandSchema = z.object({
 const FinalLockConfigSchema = z.object({
   finalPhaseStartSequence: z.number().int().nonnegative(),
 });
+const RoomOperationsConfigSchema = z.object({
+  finalLockGracePeriodMs: z.number().int().nonnegative(),
+});
 
 export const GameConfigSnapshotSchema = z.object({
   engineVersion: z.string().min(1),
@@ -43,6 +46,7 @@ export const CreateRoomSchema = z.object({
   gameConfig: GameConfigSnapshotSchema,
   holdTtlMs: z.number().int().positive(),
   participationPackages: z.array(ParticipationPackageInputSchema).min(1),
+  operationsConfig: RoomOperationsConfigSchema,
 });
 export type CreateRoomBody = z.infer<typeof CreateRoomSchema>;
 

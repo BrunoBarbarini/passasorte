@@ -2,13 +2,16 @@
 import { describe, expect, it } from "vitest";
 import type {
   EligibilityRule,
+  FinalMovementPlan,
   MovementAllocation,
+  MovementCommand,
   Participation,
   ParticipationPackage,
   ParticipationStatus,
   Position,
   PositionHold,
 } from "@passasorte/domain";
+import { FinalMovementPlanAlreadyLockedError } from "@passasorte/domain";
 import { CreateParticipationUseCase } from "../use-cases/participation/create-participation.use-case.js";
 import { ConfirmParticipationUseCase } from "../use-cases/participation/confirm-participation.use-case.js";
 import { SubmitMovementCommandUseCase } from "../use-cases/participation/submit-movement-command.use-case.js";
@@ -16,13 +19,18 @@ import type {
   CreateParticipationInput,
   ParticipationRepository,
 } from "../ports/participation-repository.port.js";
-import type { PositionHoldRepository, TryHoldInput } from "../ports/position-hold-repository.port.js";
+import type {
+  PositionHoldRepository,
+  TryHoldInput,
+} from "../ports/position-hold-repository.port.js";
 import type { IdempotencyPort } from "../ports/idempotency.port.js";
 import { ConflictError, ValidationError } from "../errors.js";
 
 class InMemoryParticipationRepository implements ParticipationRepository {
   private nextId = 1;
   private readonly byId = new Map<string, Participation>();
+  private readonly movementCommands: MovementCommand[] = [];
+  private readonly finalPlansById = new Map<string, FinalMovementPlan>();
 
   async findById(id: string): Promise<Participation | null> {
     return this.byId.get(id) ?? null;
@@ -59,7 +67,10 @@ class InMemoryParticipationRepository implements ParticipationRepository {
     return 0;
   }
 
-  async updateMovementAllocation(id: string, allocation: MovementAllocation): Promise<Participation> {
+  async updateMovementAllocation(
+    id: string,
+    allocation: MovementAllocation,
+  ): Promise<Participation> {
     const existing = this.byId.get(id);
     if (!existing) {
       throw new Error(`participation "${id}" not found in test double`);
@@ -75,6 +86,33 @@ class InMemoryParticipationRepository implements ParticipationRepository {
 
   async listByUserAndRoom(userId: string, roomId: string): Promise<readonly Participation[]> {
     return [...this.byId.values()].filter((p) => p.userId === userId && p.roomId === roomId);
+  }
+
+  async listByRoomId(roomId: string): Promise<readonly Participation[]> {
+    return [...this.byId.values()].filter((p) => p.roomId === roomId);
+  }
+
+  async appendMovementCommand(_roomId: string, command: MovementCommand): Promise<void> {
+    this.movementCommands.push(command);
+  }
+
+  async listMovementCommandsForRoom(_roomId: string): Promise<readonly MovementCommand[]> {
+    return [...this.movementCommands].sort((a, b) => a.sequence - b.sequence);
+  }
+
+  async lockFinalMovementPlan(
+    participationId: string,
+    plan: FinalMovementPlan,
+  ): Promise<Participation> {
+    if (this.finalPlansById.has(participationId)) {
+      throw new FinalMovementPlanAlreadyLockedError(participationId);
+    }
+    this.finalPlansById.set(participationId, plan);
+    return this.transition(participationId, "LOCKED");
+  }
+
+  async findFinalMovementPlan(participationId: string): Promise<FinalMovementPlan | null> {
+    return this.finalPlansById.get(participationId) ?? null;
   }
 }
 
@@ -126,6 +164,10 @@ class InMemoryPositionHoldRepository implements PositionHoldRepository {
 
   async listForRoom(roomId: string): Promise<readonly PositionHold[]> {
     return [...this.holdsByKey.values()].filter((h) => h.roomId === roomId);
+  }
+
+  async expireOverdue(): Promise<readonly PositionHold[]> {
+    return [];
   }
 }
 
@@ -265,7 +307,11 @@ describe("SubmitMovementCommandUseCase (FR-037/FR-038)", () => {
       sequence: 1,
     };
 
-    await useCase.execute({ participationId: participation.id, command, idempotencyKey: "same-key" });
+    await useCase.execute({
+      participationId: participation.id,
+      command,
+      idempotencyKey: "same-key",
+    });
     await expect(
       useCase.execute({ participationId: participation.id, command, idempotencyKey: "same-key" }),
     ).rejects.toThrow(ConflictError);

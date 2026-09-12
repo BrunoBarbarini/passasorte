@@ -90,7 +90,11 @@ export class PrismaPositionHoldRepository implements PositionHoldRepository {
     await this.prisma.positionHold.update({ where: { id: holdId }, data: { status: "RELEASED" } });
   }
 
-  async findActiveHold(roomId: string, position: Position, now: Date): Promise<PositionHold | null> {
+  async findActiveHold(
+    roomId: string,
+    position: Position,
+    now: Date,
+  ): Promise<PositionHold | null> {
     const row = await this.prisma.positionHold.findUnique({
       where: { roomId_position: { roomId, position } },
     });
@@ -110,5 +114,27 @@ export class PrismaPositionHoldRepository implements PositionHoldRepository {
   async listForRoom(roomId: string): Promise<readonly PositionHold[]> {
     const rows = await this.prisma.positionHold.findMany({ where: { roomId } });
     return rows.map(toDomainHold);
+  }
+
+  /**
+   * TASK-034 Scheduler. Reads the overdue set then updates it — safe
+   * without a serializable transaction because expiring an already-
+   * expired hold is idempotent (updating a RELEASED/EXPIRED/COMMITTED
+   * row back to EXPIRED would be a bug, so the WHERE clause re-checks
+   * status=ACTIVE at write time too, closing the small window between
+   * the two calls).
+   */
+  async expireOverdue(now: Date): Promise<readonly PositionHold[]> {
+    const overdue = await this.prisma.positionHold.findMany({
+      where: { status: "ACTIVE", expiresAt: { lte: now } },
+    });
+    if (overdue.length === 0) {
+      return [];
+    }
+    await this.prisma.positionHold.updateMany({
+      where: { id: { in: overdue.map((r) => r.id) }, status: "ACTIVE", expiresAt: { lte: now } },
+      data: { status: "EXPIRED" },
+    });
+    return overdue.map((row) => toDomainHold({ ...row, status: "EXPIRED" }));
   }
 }

@@ -25,7 +25,10 @@ export interface SubmitMovementCommandResult {
  * What the movement DOES to the board (BR-022) is the GameEngine's
  * concern (Phase 2) — this use case only validates the submission is
  * legal and spends the participation's movement allowance exactly once,
- * even if the same request arrives twice.
+ * even if the same request arrives twice. It also appends the command to
+ * the room's replayable movement log (BR-026/FR-044) so Phase 5's
+ * AdvanceRoomOperationsUseCase can later feed it to the GameEngine as one
+ * of that room's "rounds".
  */
 export class SubmitMovementCommandUseCase {
   constructor(
@@ -45,6 +48,8 @@ export class SubmitMovementCommandUseCase {
     if (!isFirstSubmission) {
       throw new ConflictError("Este movimento já foi submetido anteriormente.");
     }
+
+    await this.participationRepository.appendMovementCommand(participation.roomId, input.command);
 
     const newAllocation = spendMovement(toMovementAllocation(participation));
     const updated = await this.participationRepository.updateMovementAllocation(

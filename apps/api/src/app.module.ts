@@ -7,9 +7,20 @@ import { CampaignsModule } from "./modules/campaigns/campaigns.module.js";
 import { CatalogModule } from "./modules/catalog/catalog.module.js";
 import { RoomsModule } from "./modules/rooms/rooms.module.js";
 import { ParticipationsModule } from "./modules/participations/participations.module.js";
+import { NotificationsModule } from "./modules/notifications/notifications.module.js";
+import { OperationsModule } from "./modules/operations/operations.module.js";
 
 @Module({
-  imports: [MerchantsModule, ExperiencesModule, CampaignsModule, CatalogModule, RoomsModule, ParticipationsModule],
+  imports: [
+    MerchantsModule,
+    ExperiencesModule,
+    CampaignsModule,
+    CatalogModule,
+    RoomsModule,
+    ParticipationsModule,
+    NotificationsModule,
+    OperationsModule,
+  ],
   controllers: [HealthController],
 })
 export class AppModule implements NestModule {

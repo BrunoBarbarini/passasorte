@@ -34,6 +34,11 @@ export default tseslint.config(
       // "include" (Expo/Metro loads it directly, not tsc) - can't be
       // typed-linted like the rest of the repo.
       "**/babel.config.js",
+      // apps/web (Next.js): its build output and the two files Next.js
+      // itself generates/loads outside any tsconfig "include".
+      "**/.next/**",
+      "**/next.config.mjs",
+      "**/next-env.d.ts",
     ],
   },
 );

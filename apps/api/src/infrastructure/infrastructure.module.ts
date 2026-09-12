@@ -1,6 +1,6 @@
 import { Module, type Provider } from "@nestjs/common";
 import { loadConfig } from "@passasorte/config";
-import type { AuthPort } from "@passasorte/application";
+import type { AuthPort, NotificationProvider } from "@passasorte/application";
 import { PrismaService } from "./prisma/prisma.service.js";
 import { PrismaUserRepository } from "./prisma/repositories/user.repository.js";
 import { PrismaMerchantRepository } from "./prisma/repositories/merchant.repository.js";
@@ -12,15 +12,22 @@ import { PrismaRoomRepository } from "./prisma/repositories/room.repository.js";
 import { PrismaPositionHoldRepository } from "./prisma/repositories/position-hold.repository.js";
 import { PrismaParticipationRepository } from "./prisma/repositories/participation.repository.js";
 import { PrismaIdempotencyRepository } from "./prisma/repositories/idempotency.repository.js";
+import { PrismaGameRunRepository } from "./prisma/repositories/game-run.repository.js";
+import { PrismaNotificationRepository } from "./prisma/repositories/notification.repository.js";
 import { SupabaseAuthAdapter } from "./auth/supabase-auth.adapter.js";
+import { resolveNotificationProviders } from "./notifications/notification-provider-registry.js";
 import {
   AUDIT_LOG_PORT,
   AUTH_PORT,
   CAMPAIGN_REPOSITORY,
   EXPERIENCE_REPOSITORY,
+  GAME_RUN_REPOSITORY,
   IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
+  NOTIFICATION_PROVIDERS,
+  NOTIFICATION_REPOSITORY,
   OUTBOX_PORT,
+  OUTBOX_READER_PORT,
   PARTICIPATION_REPOSITORY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
@@ -30,6 +37,11 @@ import {
 const authPortProvider: Provider = {
   provide: AUTH_PORT,
   useFactory: (): AuthPort => new SupabaseAuthAdapter(loadConfig().supabase.url),
+};
+
+const notificationProvidersProvider: Provider = {
+  provide: NOTIFICATION_PROVIDERS,
+  useFactory: (): readonly NotificationProvider[] => resolveNotificationProviders(),
 };
 
 /**
@@ -48,10 +60,14 @@ const authPortProvider: Provider = {
     { provide: CAMPAIGN_REPOSITORY, useClass: PrismaCampaignRepository },
     { provide: AUDIT_LOG_PORT, useClass: PrismaAuditLogRepository },
     { provide: OUTBOX_PORT, useClass: PrismaOutboxRepository },
+    { provide: OUTBOX_READER_PORT, useExisting: OUTBOX_PORT },
     { provide: ROOM_REPOSITORY, useClass: PrismaRoomRepository },
     { provide: POSITION_HOLD_REPOSITORY, useClass: PrismaPositionHoldRepository },
     { provide: PARTICIPATION_REPOSITORY, useClass: PrismaParticipationRepository },
     { provide: IDEMPOTENCY_PORT, useClass: PrismaIdempotencyRepository },
+    { provide: GAME_RUN_REPOSITORY, useClass: PrismaGameRunRepository },
+    { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
+    notificationProvidersProvider,
   ],
   exports: [
     PrismaService,
@@ -62,10 +78,14 @@ const authPortProvider: Provider = {
     CAMPAIGN_REPOSITORY,
     AUDIT_LOG_PORT,
     OUTBOX_PORT,
+    OUTBOX_READER_PORT,
     ROOM_REPOSITORY,
     POSITION_HOLD_REPOSITORY,
     PARTICIPATION_REPOSITORY,
     IDEMPOTENCY_PORT,
+    GAME_RUN_REPOSITORY,
+    NOTIFICATION_REPOSITORY,
+    NOTIFICATION_PROVIDERS,
   ],
 })
 export class InfrastructureModule {}

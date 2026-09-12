@@ -28,8 +28,10 @@ function buildRoom(overrides: Partial<GameRoom> = {}): GameRoom {
     participationPackages: [
       { id: "pkg-1", positionCount: 1, movementAllowance: 3, eligibilityRules: [] },
     ],
+    operationsConfig: { finalLockGracePeriodMs: 30_000 },
     status: "OPEN",
     createdAt: new Date(),
+    finalLockedAt: null,
     cancelledAt: null,
     cancellationReason: null,
     ...overrides,
@@ -54,6 +56,10 @@ class InMemoryRoomRepository implements RoomRepository {
 
   async listByCampaignId(campaignId: string): Promise<readonly GameRoom[]> {
     return campaignId === this.room.campaignId ? [this.room] : [];
+  }
+
+  async listByStatus(status: GameRoom["status"]): Promise<readonly GameRoom[]> {
+    return status === this.room.status ? [this.room] : [];
   }
 }
 
@@ -103,7 +109,11 @@ class InMemoryPositionHoldRepository implements PositionHoldRepository {
     }
   }
 
-  async findActiveHold(roomId: string, position: Position, now: Date): Promise<PositionHold | null> {
+  async findActiveHold(
+    roomId: string,
+    position: Position,
+    now: Date,
+  ): Promise<PositionHold | null> {
     const hold = this.holdsByKey.get(this.key(roomId, position));
     if (!hold || hold.status !== "ACTIVE" || hold.expiresAt.getTime() <= now.getTime()) {
       return null;
@@ -121,6 +131,18 @@ class InMemoryPositionHoldRepository implements PositionHoldRepository {
 
   async listForRoom(roomId: string): Promise<readonly PositionHold[]> {
     return [...this.holdsByKey.values()].filter((h) => h.roomId === roomId);
+  }
+
+  async expireOverdue(now: Date): Promise<readonly PositionHold[]> {
+    const expired: PositionHold[] = [];
+    for (const [key, hold] of this.holdsByKey.entries()) {
+      if (hold.status === "ACTIVE" && hold.expiresAt.getTime() <= now.getTime()) {
+        const updated: PositionHold = { ...hold, status: "EXPIRED" };
+        this.holdsByKey.set(key, updated);
+        expired.push(updated);
+      }
+    }
+    return expired;
   }
 }
 

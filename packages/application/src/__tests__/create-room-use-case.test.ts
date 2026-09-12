@@ -13,9 +13,9 @@ const GAME_CONFIG: GameConfigSnapshot = {
   finalLock: { finalPhaseStartSequence: 5 },
 };
 
-const PACKAGES = [
-  { id: "pkg-1", positionCount: 1, movementAllowance: 3, eligibilityRules: [] },
-];
+const PACKAGES = [{ id: "pkg-1", positionCount: 1, movementAllowance: 3, eligibilityRules: [] }];
+
+const OPERATIONS_CONFIG = { finalLockGracePeriodMs: 30_000 };
 
 class InMemoryRoomRepository implements RoomRepository {
   public created: CreateRoomInput | undefined;
@@ -33,8 +33,10 @@ class InMemoryRoomRepository implements RoomRepository {
       gameConfig: input.gameConfig,
       holdTtlMs: input.holdTtlMs,
       participationPackages: input.participationPackages,
+      operationsConfig: input.operationsConfig,
       status: "DRAFT",
       createdAt: new Date(),
+      finalLockedAt: null,
       cancelledAt: null,
       cancellationReason: null,
     };
@@ -45,6 +47,10 @@ class InMemoryRoomRepository implements RoomRepository {
   }
 
   async listByCampaignId(): Promise<readonly GameRoom[]> {
+    return [];
+  }
+
+  async listByStatus(): Promise<readonly GameRoom[]> {
     return [];
   }
 }
@@ -59,6 +65,7 @@ describe("CreateRoomUseCase (TASK-024)", () => {
       gameConfig: GAME_CONFIG,
       holdTtlMs: 60_000,
       participationPackages: PACKAGES,
+      operationsConfig: OPERATIONS_CONFIG,
     });
     expect(room.capacity).toBe(10);
     expect(repository.created?.holdTtlMs).toBe(60_000);
@@ -74,6 +81,7 @@ describe("CreateRoomUseCase (TASK-024)", () => {
         gameConfig: GAME_CONFIG,
         holdTtlMs: 60_000,
         participationPackages: PACKAGES,
+        operationsConfig: OPERATIONS_CONFIG,
       }),
     ).rejects.toThrow();
     expect(repository.created).toBeUndefined();
@@ -89,6 +97,7 @@ describe("CreateRoomUseCase (TASK-024)", () => {
         gameConfig: GAME_CONFIG,
         holdTtlMs: 60_000,
         participationPackages: [],
+        operationsConfig: OPERATIONS_CONFIG,
       }),
     ).rejects.toThrow();
   });

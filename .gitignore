@@ -6,7 +6,9 @@ node_modules/
 dist/
 build/
 .turbo/
+*.tsbuildinfo
 coverage/
+.next/
 
 # Env
 .env

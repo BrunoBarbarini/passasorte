@@ -3,6 +3,7 @@ import type {
   GameConfigSnapshot,
   GameRoom,
   ParticipationPackage,
+  RoomOperationsConfig,
   RoomStatus,
 } from "@passasorte/domain";
 import type { CreateRoomInput, RoomRepository } from "@passasorte/application";
@@ -46,11 +47,13 @@ function toDomainRoom(row: PrismaGameRoom): GameRoom {
     capacity: row.capacity,
     gameConfig: row.gameConfig as unknown as GameConfigSnapshot,
     holdTtlMs: row.holdTtlMs,
-    participationPackages: (row.participationPackages as unknown as StoredParticipationPackage[]).map(
-      toDomainPackage,
-    ),
+    participationPackages: (
+      row.participationPackages as unknown as StoredParticipationPackage[]
+    ).map(toDomainPackage),
+    operationsConfig: row.operationsConfig as unknown as RoomOperationsConfig,
     status: row.status,
     createdAt: row.createdAt,
+    finalLockedAt: row.finalLockedAt,
     cancelledAt: row.cancelledAt,
     cancellationReason: row.cancellationReason,
   };
@@ -72,7 +75,10 @@ export class PrismaRoomRepository implements RoomRepository {
         capacity: input.capacity,
         gameConfig: input.gameConfig as unknown as Prisma.InputJsonValue,
         holdTtlMs: input.holdTtlMs,
-        participationPackages: input.participationPackages.map(toStoredPackage) as unknown as Prisma.InputJsonValue,
+        participationPackages: input.participationPackages.map(
+          toStoredPackage,
+        ) as unknown as Prisma.InputJsonValue,
+        operationsConfig: input.operationsConfig as unknown as Prisma.InputJsonValue,
       },
     });
     return toDomainRoom(row);
@@ -84,6 +90,7 @@ export class PrismaRoomRepository implements RoomRepository {
       data: {
         status,
         cancelledAt: status === "CANCELLED" ? at : undefined,
+        finalLockedAt: status === "FINAL_LOCK" ? at : undefined,
       },
     });
     return toDomainRoom(row);
@@ -94,6 +101,11 @@ export class PrismaRoomRepository implements RoomRepository {
       where: { campaignId },
       orderBy: { createdAt: "asc" },
     });
+    return rows.map(toDomainRoom);
+  }
+
+  async listByStatus(status: RoomStatus): Promise<readonly GameRoom[]> {
+    const rows = await this.prisma.gameRoom.findMany({ where: { status } });
     return rows.map(toDomainRoom);
   }
 }

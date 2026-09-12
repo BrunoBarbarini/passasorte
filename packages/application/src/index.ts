@@ -18,6 +18,9 @@ export * from "./ports/room-repository.port.js";
 export * from "./ports/position-hold-repository.port.js";
 export * from "./ports/participation-repository.port.js";
 export * from "./ports/idempotency.port.js";
+export * from "./ports/game-run-repository.port.js";
+export * from "./ports/notification-repository.port.js";
+export * from "./ports/notification-provider.port.js";
 
 export * from "./use-cases/identity/authenticate-request.use-case.js";
 
@@ -36,7 +39,18 @@ export * from "./use-cases/campaign/list-public-campaigns.use-case.js";
 
 export * from "./use-cases/room/hold-positions.use-case.js";
 export * from "./use-cases/room/create-room.use-case.js";
+export * from "./use-cases/room/lock-room-entries.use-case.js";
+export * from "./use-cases/room/start-room.use-case.js";
 
 export * from "./use-cases/participation/create-participation.use-case.js";
 export * from "./use-cases/participation/confirm-participation.use-case.js";
 export * from "./use-cases/participation/submit-movement-command.use-case.js";
+export * from "./use-cases/participation/submit-final-movement-command.use-case.js";
+
+export * from "./use-cases/game/expire-position-holds.use-case.js";
+export * from "./use-cases/game/advance-room-operations.use-case.js";
+
+export * from "./use-cases/notification/list-notifications.use-case.js";
+export * from "./use-cases/notification/mark-notification-read.use-case.js";
+export * from "./use-cases/notification/set-notification-preference.use-case.js";
+export * from "./use-cases/notification/dispatch-outbox-events.use-case.js";

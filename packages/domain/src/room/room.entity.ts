@@ -17,6 +17,7 @@
 import type { GameConfigSnapshot } from "../game/game-config.js";
 import type { RoomStatus } from "./room-state-machine.js";
 import type { ParticipationPackage } from "../participation/participation-package.js";
+import type { RoomOperationsConfig } from "../game/room-operations-config.js";
 
 export type { RoomStatus } from "./room-state-machine.js";
 
@@ -29,8 +30,12 @@ export interface GameRoom {
   readonly holdTtlMs: number;
   /** FR-029: the packages a participant may enter this room with. */
   readonly participationPackages: readonly ParticipationPackage[];
+  /** TASK-034 Scheduler pacing for this room (CLAUDE.md #56/#58: per-room, never a global default — see room-operations-config.js). */
+  readonly operationsConfig: RoomOperationsConfig;
   readonly status: RoomStatus;
   readonly createdAt: Date;
+  /** TASK-034 Scheduler: when this room entered FINAL_LOCK — used only to pace the grace-period timeout (operationsConfig.finalLockGracePeriodMs), never a business rule about outcomes. */
+  readonly finalLockedAt: Date | null;
   readonly cancelledAt: Date | null;
   readonly cancellationReason: string | null;
 }

@@ -30,6 +30,10 @@ export interface AppConfig {
     exporterOtlpEndpoint?: string | undefined;
     tracesSamplerRatio: number;
   };
+  worker: {
+    pollIntervalMs: number;
+    outboxBatchSize: number;
+  };
   featureFlags: FeatureFlags;
 }
 
@@ -73,6 +77,10 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     otel: {
       exporterOtlpEndpoint: env.OTEL_EXPORTER_OTLP_ENDPOINT,
       tracesSamplerRatio: env.OTEL_TRACES_SAMPLER_RATIO,
+    },
+    worker: {
+      pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
+      outboxBatchSize: env.WORKER_OUTBOX_BATCH_SIZE,
     },
     featureFlags: {
       ENABLE_NEW_PARTICIPATIONS: env.ENABLE_NEW_PARTICIPATIONS,

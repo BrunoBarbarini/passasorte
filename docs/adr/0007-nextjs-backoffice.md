@@ -2,7 +2,7 @@
 
 ## Status
 
-PROPOSED
+ACCEPTED (Phase 5: apps/web scaffolded as TASK-047's Game Operational Dashboard)
 
 ## Context
 
@@ -15,5 +15,7 @@ Build the backoffice (and any public web surface) with Next.js + React.
 
 ## Consequences
 
-Shared React/TypeScript skills and API contracts with mobile; not yet
-scaffolded (see apps/web/README.md) since it depends on Phase 1 APIs.
+Shared React/TypeScript skills and API contracts with mobile.
+Scaffolded in Phase 5 (see apps/web/README.md) once the APIs it needs
+(Identity/Partner/Campaign from Phase 1, Rooms/Operations from Phases
+3-5) existed.

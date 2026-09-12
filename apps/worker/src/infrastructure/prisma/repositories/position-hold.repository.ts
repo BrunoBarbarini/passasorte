@@ -1,0 +1,116 @@
+/**
+ * Mirrors apps/api/src/infrastructure/prisma/repositories/position-hold.repository.ts
+ * (only expireOverdue is actually called by the worker's scheduled jobs —
+ * the rest exist because PositionHoldRepository is one interface).
+ */
+import type { Position, PositionHold } from "@passasorte/domain";
+import type { PositionHoldRepository, TryHoldInput } from "@passasorte/application";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import type { PositionHold as PrismaPositionHold } from "@prisma/client";
+
+function toDomainHold(row: PrismaPositionHold): PositionHold {
+  return {
+    id: row.id,
+    roomId: row.roomId,
+    position: row.position,
+    holderRef: row.holderRef,
+    status: row.status,
+    heldAt: row.heldAt,
+    expiresAt: row.expiresAt,
+  };
+}
+
+export class PrismaPositionHoldRepository implements PositionHoldRepository {
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async tryHold(input: TryHoldInput): Promise<PositionHold | null> {
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.positionHold.findUnique({
+            where: { roomId_position: { roomId: input.roomId, position: input.position } },
+          });
+          const isFree =
+            !existing ||
+            existing.status === "RELEASED" ||
+            existing.status === "EXPIRED" ||
+            (existing.status === "ACTIVE" && existing.expiresAt.getTime() <= input.now.getTime());
+          if (!isFree) {
+            return null;
+          }
+          const row = existing
+            ? await tx.positionHold.update({
+                where: { id: existing.id },
+                data: {
+                  holderRef: input.holderRef,
+                  status: "ACTIVE",
+                  heldAt: input.now,
+                  expiresAt: input.expiresAt,
+                },
+              })
+            : await tx.positionHold.create({
+                data: {
+                  roomId: input.roomId,
+                  position: input.position,
+                  holderRef: input.holderRef,
+                  status: "ACTIVE",
+                  heldAt: input.now,
+                  expiresAt: input.expiresAt,
+                },
+              });
+          return toDomainHold(row);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async release(holdId: string): Promise<void> {
+    await this.prisma.positionHold.update({ where: { id: holdId }, data: { status: "RELEASED" } });
+  }
+
+  async findActiveHold(
+    roomId: string,
+    position: Position,
+    now: Date,
+  ): Promise<PositionHold | null> {
+    const row = await this.prisma.positionHold.findUnique({
+      where: { roomId_position: { roomId, position } },
+    });
+    if (!row || row.status !== "ACTIVE" || row.expiresAt.getTime() <= now.getTime()) {
+      return null;
+    }
+    return toDomainHold(row);
+  }
+
+  async commitHold(roomId: string, position: Position): Promise<void> {
+    await this.prisma.positionHold.updateMany({
+      where: { roomId, position, status: "ACTIVE" },
+      data: { status: "COMMITTED" },
+    });
+  }
+
+  async listForRoom(roomId: string): Promise<readonly PositionHold[]> {
+    const rows = await this.prisma.positionHold.findMany({ where: { roomId } });
+    return rows.map(toDomainHold);
+  }
+
+  async expireOverdue(now: Date): Promise<readonly PositionHold[]> {
+    const overdue = await this.prisma.positionHold.findMany({
+      where: { status: "ACTIVE", expiresAt: { lte: now } },
+    });
+    if (overdue.length === 0) {
+      return [];
+    }
+    await this.prisma.positionHold.updateMany({
+      where: { id: { in: overdue.map((r) => r.id) }, status: "ACTIVE", expiresAt: { lte: now } },
+      data: { status: "EXPIRED" },
+    });
+    return overdue.map((row) => toDomainHold({ ...row, status: "EXPIRED" }));
+  }
+}

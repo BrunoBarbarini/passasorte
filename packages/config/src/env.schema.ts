@@ -79,6 +79,14 @@ export const EnvSchema = z.object({
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().url().optional(),
   OTEL_TRACES_SAMPLER_RATIO: z.coerce.number().min(0).max(1).default(1),
 
+  /// apps/worker scheduler cadence (TASK-034). This is infra/operational
+  /// pacing (how often the worker wakes up to check for eligible work),
+  /// NOT the per-room business pacing in room-operations-config.ts, so an
+  /// env var is appropriate here (CLAUDE.md #42 only forbids env vars
+  /// for BUSINESS constants).
+  WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
+  WORKER_OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+
   ...FeatureFlagsSchema.shape,
 });
 export type Env = z.infer<typeof EnvSchema>;

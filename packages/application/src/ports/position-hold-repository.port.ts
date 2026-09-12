@@ -31,4 +31,11 @@ export interface PositionHoldRepository {
   commitHold(roomId: string, position: Position): Promise<void>;
   /** One row per position that currently has any hold history in this room (any status). */
   listForRoom(roomId: string): Promise<readonly PositionHold[]>;
+  /**
+   * TASK-034 Scheduler: atomically transitions every ACTIVE hold whose
+   * `expiresAt` is at/before `now` to EXPIRED and returns the rows that
+   * were changed, so the position becomes available again without a
+   * separate read-then-write race.
+   */
+  expireOverdue(now: Date): Promise<readonly PositionHold[]>;
 }

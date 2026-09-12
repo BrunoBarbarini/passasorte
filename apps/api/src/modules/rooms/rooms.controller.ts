@@ -2,7 +2,11 @@ import { Body, Controller, Inject, Param, Post, UseGuards } from "@nestjs/common
 import { CreateRoomSchema, HoldPositionsSchema } from "@passasorte/api-contract";
 import {
   CreateRoomUseCase,
+  LockRoomEntriesUseCase,
+  StartRoomUseCase,
   HoldPositionsUseCase,
+  type GameRunRepository,
+  type ParticipationRepository,
   type PositionHoldRepository,
   type RoomRepository,
 } from "@passasorte/application";
@@ -11,16 +15,22 @@ import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
-import { POSITION_HOLD_REPOSITORY, ROOM_REPOSITORY } from "../../common/tokens.js";
+import {
+  GAME_RUN_REPOSITORY,
+  PARTICIPATION_REPOSITORY,
+  POSITION_HOLD_REPOSITORY,
+  ROOM_REPOSITORY,
+} from "../../common/tokens.js";
 import { parseWithSchema } from "../../common/validation/parse-with-schema.js";
 import { resolveEligibilityRules } from "../../infrastructure/eligibility/eligibility-rule-registry.js";
 
 /**
- * TASK-024 Room Domain (operational side) + FR-022..FR-024 Position Hold.
- * Room creation is backoffice-only (no CLAUDE.md backlog task defines a
- * dedicated "Room Backoffice" surface — this mirrors CampaignsController's
- * shape rather than inventing new roles/flows). Holding positions is open
- * to any authenticated participant.
+ * TASK-024 Room Domain (operational side) + FR-022..FR-024 Position Hold
+ * + Phase 5's room-lifecycle operator actions (OPEN -> ENTRY_LOCKED ->
+ * RUNNING). Room creation/lifecycle is backoffice-only (no CLAUDE.md
+ * backlog task defines a dedicated "Room Backoffice" surface — this
+ * mirrors CampaignsController's shape rather than inventing new roles/
+ * flows). Holding positions is open to any authenticated participant.
  */
 @Controller()
 @UseGuards(AuthGuard)
@@ -28,6 +38,9 @@ export class RoomsController {
   constructor(
     @Inject(ROOM_REPOSITORY) private readonly roomRepository: RoomRepository,
     @Inject(POSITION_HOLD_REPOSITORY) private readonly holdRepository: PositionHoldRepository,
+    @Inject(PARTICIPATION_REPOSITORY)
+    private readonly participationRepository: ParticipationRepository,
+    @Inject(GAME_RUN_REPOSITORY) private readonly gameRunRepository: GameRunRepository,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -47,7 +60,26 @@ export class RoomsController {
         eligibilityRules: resolveEligibilityRules(pkg.eligibilityRuleIds ?? []),
         priceMinorUnits: pkg.priceMinorUnits,
       })),
+      operationsConfig: input.operationsConfig,
     });
+  }
+
+  @Post("rooms/:roomId/lock-entries")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  lockEntries(@Param("roomId") roomId: string): Promise<GameRoom> {
+    return new LockRoomEntriesUseCase(this.roomRepository).execute({ roomId });
+  }
+
+  @Post("rooms/:roomId/start")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  start(@Param("roomId") roomId: string): Promise<GameRoom> {
+    return new StartRoomUseCase(
+      this.roomRepository,
+      this.participationRepository,
+      this.gameRunRepository,
+    ).execute({ roomId });
   }
 
   @Post("rooms/:roomId/holds")

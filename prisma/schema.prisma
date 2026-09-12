@@ -51,9 +51,11 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  profile UserProfile?
-  roles   UserRole[]
-  participations Participation[]
+  profile                 UserProfile?
+  roles                   UserRole[]
+  participations          Participation[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
 
   @@map("users")
 }
@@ -91,11 +93,11 @@ enum RoleKey {
 /// action — grantedByUserId records who granted it (nullable only for
 /// the very first bootstrap admin, which has no granting user).
 model UserRole {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  role          RoleKey
-  grantedAt     DateTime @default(now()) @map("granted_at")
-  grantedByUserId String? @map("granted_by_user_id") @db.Uuid
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  role            RoleKey
+  grantedAt       DateTime @default(now()) @map("granted_at")
+  grantedByUserId String?  @map("granted_by_user_id") @db.Uuid
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -130,17 +132,17 @@ model Merchant {
 
 /// FR-011 Merchant Locations — one-to-many per merchant.
 model MerchantLocation {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  merchantId String   @map("merchant_id") @db.Uuid
-  label      String
-  addressLine1 String @map("address_line1")
-  addressLine2 String? @map("address_line2")
-  city       String
-  state      String
-  postalCode String   @map("postal_code")
-  country    String   @default("BR")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  merchantId   String   @map("merchant_id") @db.Uuid
+  label        String
+  addressLine1 String   @map("address_line1")
+  addressLine2 String?  @map("address_line2")
+  city         String
+  state        String
+  postalCode   String   @map("postal_code")
+  country      String   @default("BR")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
@@ -202,14 +204,14 @@ model Campaign {
   /// BR-002: frozen copy of the Experience as it was when this campaign
   /// was published (FR-016) — never re-read from `experiences` after
   /// that point.
-  experienceSnapshot Json?    @map("experience_snapshot")
+  experienceSnapshot Json? @map("experience_snapshot")
 
-  scheduledStartAt DateTime? @map("scheduled_start_at")
-  scheduledEndAt   DateTime? @map("scheduled_end_at")
-  publishedAt      DateTime? @map("published_at")
-  endedAt          DateTime? @map("ended_at")
-  cancelledAt      DateTime? @map("cancelled_at")
-  cancellationReason String? @map("cancellation_reason")
+  scheduledStartAt   DateTime? @map("scheduled_start_at")
+  scheduledEndAt     DateTime? @map("scheduled_end_at")
+  publishedAt        DateTime? @map("published_at")
+  endedAt            DateTime? @map("ended_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancellationReason String?   @map("cancellation_reason")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -228,13 +230,13 @@ model Campaign {
 /// approval/publication/cancellation, ...) writes one row here in the
 /// same transaction as the change it records.
 model AuditLog {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  actorUserId  String?  @map("actor_user_id") @db.Uuid
-  action       String
-  entityType   String   @map("entity_type")
-  entityId     String   @map("entity_id") @db.Uuid
-  metadata     Json?
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?  @map("actor_user_id") @db.Uuid
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String   @map("entity_id") @db.Uuid
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
 
   @@index([entityType, entityId])
   @@map("audit_logs")
@@ -258,7 +260,6 @@ model OutboxEvent {
   @@index([processedAt])
   @@map("outbox_events")
 }
-
 
 // --- Phase 3/4: Room, Position Hold, Participation -------------------------
 //
@@ -309,14 +310,22 @@ model GameRoom {
   gameConfig            Json           @map("game_config")
   holdTtlMs             Int            @map("hold_ttl_ms")
   participationPackages Json           @map("participation_packages")
+  /// TASK-034 Scheduler pacing (finalLockGracePeriodMs) — per-room,
+  /// never a global default (CLAUDE.md #56/#58). See
+  /// packages/domain/src/game/room-operations-config.ts.
+  operationsConfig      Json           @map("operations_config")
   status                GameRoomStatus @default(DRAFT)
   createdAt             DateTime       @default(now()) @map("created_at")
+  /// When this room entered FINAL_LOCK — used only to pace the grace
+  /// period timeout, never a business rule about outcomes.
+  finalLockedAt         DateTime?      @map("final_locked_at")
   cancelledAt           DateTime?      @map("cancelled_at")
   cancellationReason    String?        @map("cancellation_reason")
 
   campaign       Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   positionHolds  PositionHold[]
   participations Participation[]
+  gameRun        GameRun?
 
   @@map("game_rooms")
 }
@@ -356,11 +365,15 @@ model Participation {
   status                 ParticipationStatus @default(CREATED)
   movementAllowanceTotal Int                 @map("movement_allowance_total")
   movementAllowanceUsed  Int                 @default(0) @map("movement_allowance_used")
+  /// TASK-030 Final Movement Plan (BR-028: immutable once written — only
+  /// ever set once by application-layer code, never updated).
+  finalMovementPlan      Json?               @map("final_movement_plan")
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  room GameRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  user User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  room             GameRoom             @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user             User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  movementCommands MovementCommandLog[]
 
   @@index([userId, roomId])
   @@map("participations")
@@ -375,4 +388,103 @@ model IdempotencyKey {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("idempotency_keys")
+}
+
+// --- Phase 5: Scheduled Game Operations ------------------------------------
+//
+// TASK-030..TASK-035, TASK-047. The pluggable game/movement/winner/final-
+// submission RULES themselves stay exactly as undecided as Phases 2/3
+// already declared them (@passasorte/domain's movement.ts/
+// sorte-progression.ts/winner-selection.ts/final-lock.ts) — these tables
+// only persist what those pure functions already produce, plus the
+// per-room operational pacing needed to actually run them on a schedule.
+
+/// BR-026: every accepted movement command, across every participation in
+/// a room, ordered by `sequence` — this is the replayable log
+/// AdvanceRoomOperationsUseCase groups into GameEngine "rounds" (FR-044).
+model MovementCommandLog {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId          String   @map("room_id") @db.Uuid
+  participationId String   @map("participation_id") @db.Uuid
+  positionIndex   Int      @map("position_index")
+  direction       String
+  sequence        Int
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, sequence])
+  @@map("movement_command_logs")
+}
+
+/// BR-030/BR-031: one row per room — the randomness commitment+seed
+/// (persisted together server-side, since there is no external
+/// commit-reveal party; BR-031 is enforced by never exposing an update
+/// path for this row) and, once resolved, the immutable GameResult
+/// (FR-043). `steps`/`finalSorteZone` stay null until resolution.
+model GameRun {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId         String    @unique @map("room_id") @db.Uuid
+  engineVersion  String    @map("engine_version")
+  commitmentHash String    @map("commitment_hash")
+  seed           String
+  finalSorteZone Json?     @map("final_sorte_zone")
+  steps          Json?
+  resolvedAt     DateTime? @map("resolved_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  room    GameRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  winners Winner[]
+
+  @@map("game_runs")
+}
+
+/// TASK-032 Winner Model (ADR-019: 0..N winners per room, never a fixed
+/// cardinality — see @passasorte/domain's winner-selection.ts).
+model Winner {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gameRunId       String   @map("game_run_id") @db.Uuid
+  participationId String   @map("participation_id") @db.Uuid
+  winningPosition Int      @map("winning_position")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  gameRun GameRun @relation(fields: [gameRunId], references: [id], onDelete: Cascade)
+
+  @@index([gameRunId])
+  @@map("winners")
+}
+
+/// FR-059..FR-062. Only IN_APP is a real dispatch target today — see
+/// packages/application's NotificationProvider port (CLAUDE.md #3.12:
+/// push/email provider TBD).
+model Notification {
+  id        String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  type      String
+  title     String
+  body      String
+  data      Json?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+/// FR-062: absence of a row for a (userId, channel) pair means "enabled"
+/// (see PrismaNotificationRepository.getPreference) — this table only
+/// stores explicit opt-outs/opt-ins, never a default.
+model NotificationPreference {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  channel   String
+  enabled   Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channel])
+  @@map("notification_preferences")
 }

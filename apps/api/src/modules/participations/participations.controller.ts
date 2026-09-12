@@ -1,11 +1,16 @@
 import { Body, Controller, Get, Headers, Inject, Param, Post, UseGuards } from "@nestjs/common";
-import { CreateParticipationSchema, SubmitMovementSchema } from "@passasorte/api-contract";
+import {
+  CreateParticipationSchema,
+  SubmitFinalMovementSchema,
+  SubmitMovementSchema,
+} from "@passasorte/api-contract";
 import {
   AuthorizationError,
   ConflictError,
   ConfirmParticipationUseCase,
   CreateParticipationUseCase,
   NotFoundError,
+  SubmitFinalMovementCommandUseCase,
   SubmitMovementCommandUseCase,
   ValidationError,
   type ParticipationRepository,
@@ -29,10 +34,11 @@ import {
 import { parseWithSchema } from "../../common/validation/parse-with-schema.js";
 
 /**
- * FR-027..FR-030 Participation + FR-037/FR-038 Movement. Every route
- * requires authentication; confirming, reading, or moving a participation
- * additionally requires being its owner (no staff override endpoint
- * exists yet — not something the backlog asks for in this phase).
+ * FR-027..FR-030 Participation + FR-037/FR-038 Movement + FR-039 Final
+ * Lock. Every route requires authentication; confirming, reading, or
+ * moving a participation additionally requires being its owner (no staff
+ * override endpoint exists yet — not something the backlog asks for in
+ * this phase).
  */
 @Controller()
 @UseGuards(AuthGuard)
@@ -40,7 +46,8 @@ export class ParticipationsController {
   constructor(
     @Inject(ROOM_REPOSITORY) private readonly roomRepository: RoomRepository,
     @Inject(POSITION_HOLD_REPOSITORY) private readonly holdRepository: PositionHoldRepository,
-    @Inject(PARTICIPATION_REPOSITORY) private readonly participationRepository: ParticipationRepository,
+    @Inject(PARTICIPATION_REPOSITORY)
+    private readonly participationRepository: ParticipationRepository,
     @Inject(IDEMPOTENCY_PORT) private readonly idempotency: IdempotencyPort,
   ) {}
 
@@ -90,7 +97,10 @@ export class ParticipationsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Participation> {
     await this.requireOwnedParticipation(id, user);
-    return new ConfirmParticipationUseCase(this.participationRepository, this.holdRepository).execute({
+    return new ConfirmParticipationUseCase(
+      this.participationRepository,
+      this.holdRepository,
+    ).execute({
       participationId: id,
     });
   }
@@ -125,15 +135,40 @@ export class ParticipationsController {
       });
     }
     const input = parseWithSchema(SubmitMovementSchema, body);
-    return new SubmitMovementCommandUseCase(this.participationRepository, this.idempotency).execute({
-      participationId: id,
-      command: {
+    return new SubmitMovementCommandUseCase(this.participationRepository, this.idempotency).execute(
+      {
         participationId: id,
-        positionIndex: input.positionIndex,
-        direction: input.direction,
-        sequence: input.sequence,
+        command: {
+          participationId: id,
+          positionIndex: input.positionIndex,
+          direction: input.direction,
+          sequence: input.sequence,
+        },
+        idempotencyKey,
       },
-      idempotencyKey,
+    );
+  }
+
+  @Post("participations/:id/final-movement")
+  async submitFinalMovement(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Participation> {
+    await this.requireOwnedParticipation(id, user);
+    const input = parseWithSchema(SubmitFinalMovementSchema, body);
+    return new SubmitFinalMovementCommandUseCase(
+      this.roomRepository,
+      this.participationRepository,
+    ).execute({
+      participationId: id,
+      commands: input.commands.map((c) => ({
+        participationId: id,
+        positionIndex: c.positionIndex,
+        direction: c.direction,
+        sequence: c.sequence,
+      })),
+      atSequence: input.atSequence,
     });
   }
 
