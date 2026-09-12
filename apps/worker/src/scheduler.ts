@@ -1,7 +1,9 @@
 import {
   AdvanceRoomOperationsUseCase,
   DispatchOutboxEventsUseCase,
+  ExpireBenefitsUseCase,
   ExpirePositionHoldsUseCase,
+  type BenefitLedgerRepository,
   type GameRunRepository,
   type NotificationProvider,
   type NotificationRepository,
@@ -22,6 +24,7 @@ export interface SchedulerDeps {
   outboxReader: OutboxReaderPort;
   notificationRepository: NotificationRepository;
   notificationProviders: readonly NotificationProvider[];
+  benefitLedgerRepository: BenefitLedgerRepository;
   logger: Logger;
   /** CLAUDE.md #22 kill switch, default OFF — only gates the game-progression half of this tick. */
   gameAutoAdvanceEnabled: boolean;
@@ -55,6 +58,22 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
     deps.logger.info(
       { operation: "dispatch_outbox", count: dispatched },
       "Dispatched outbox events",
+    );
+  }
+
+  // FR-056 Benefit Expiration (background job `expire_benefits`,
+  // CLAUDE.md #28). Always runs, like hold expiration/outbox dispatch
+  // above — it is a mechanical time-based sweep, not itself a "use" of
+  // the benefit, so it is not gated behind ENABLE_BENEFIT_REDEMPTION
+  // (that flag only gates apps/api's redeem endpoint).
+  const expiredBenefits = await new ExpireBenefitsUseCase(
+    deps.benefitLedgerRepository,
+    deps.outbox,
+  ).execute({});
+  if (expiredBenefits.expired.length > 0) {
+    deps.logger.info(
+      { operation: "expire_benefits", count: expiredBenefits.expired.length },
+      "Expired promotional benefits",
     );
   }
 

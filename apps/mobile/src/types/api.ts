@@ -7,13 +7,7 @@
  */
 
 export type CampaignStatus =
-  | "DRAFT"
-  | "IN_REVIEW"
-  | "APPROVED"
-  | "SCHEDULED"
-  | "PUBLISHED"
-  | "ENDED"
-  | "CANCELLED";
+  "DRAFT" | "IN_REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "ENDED" | "CANCELLED";
 
 export interface Campaign {
   id: string;
@@ -128,6 +122,35 @@ export interface Participation {
   movementAllowanceTotal: number;
   movementAllowanceUsed: number;
   createdAt: string;
+}
+
+export type BenefitStatus = "GRANTED" | "AVAILABLE" | "REDEEMED" | "EXPIRED" | "REVERSED";
+
+/**
+ * FR-054..FR-058. `amountMinorUnits` is deliberately NOT rendered as a
+ * currency by the mobile app: CLAUDE.md never decides what a benefit's
+ * unit represents (BR-035 only says money in general uses integer minor
+ * units, not that a benefit specifically IS money) - the screen shows a
+ * plain "unidades" count instead of guessing a currency/symbol.
+ */
+export interface Benefit {
+  id: string;
+  accountId: string;
+  userId: string;
+  amountMinorUnits: number;
+  reason: string;
+  sourceRef: string | null;
+  expiresAt: string | null;
+  status: BenefitStatus;
+  grantedAt: string;
+  redeemedAt: string | null;
+  expiredAt: string | null;
+  reversedAt: string | null;
+}
+
+export interface ListMyBenefitsResponse {
+  balanceMinorUnits: number;
+  benefits: Benefit[];
 }
 
 /** Server error envelope (CLAUDE.md #16) - every 4xx/5xx apps/api response follows this shape. */

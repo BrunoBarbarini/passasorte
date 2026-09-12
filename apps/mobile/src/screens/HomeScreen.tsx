@@ -33,9 +33,14 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       <View style={styles.header}>
         <Text style={styles.title}>Campanhas em destaque</Text>
         {session ? (
-          <Pressable onPress={() => void signOut()}>
-            <Text style={styles.link}>Sair</Text>
-          </Pressable>
+          <View style={styles.headerLinks}>
+            <Pressable onPress={() => navigation.navigate("Benefits")}>
+              <Text style={styles.link}>Benefícios</Text>
+            </Pressable>
+            <Pressable onPress={() => void signOut()}>
+              <Text style={styles.link}>Sair</Text>
+            </Pressable>
+          </View>
         ) : (
           <Pressable onPress={() => navigation.navigate("Auth")}>
             <Text style={styles.link}>Entrar</Text>
@@ -49,7 +54,9 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
-          !loading ? <Text style={styles.empty}>Nenhuma campanha disponível no momento.</Text> : null
+          !loading ? (
+            <Text style={styles.empty}>Nenhuma campanha disponível no momento.</Text>
+          ) : null
         }
         renderItem={({ item }) => (
           <Pressable
@@ -67,7 +74,13 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  headerLinks: { flexDirection: "row", gap: 16 },
   title: { fontSize: 20, fontWeight: "700" },
   link: { color: "#2563eb", fontWeight: "600" },
   error: { color: "#b91c1c", marginBottom: 8 },

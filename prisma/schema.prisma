@@ -56,6 +56,7 @@ model User {
   participations          Participation[]
   notifications           Notification[]
   notificationPreferences NotificationPreference[]
+  benefitAccount          BenefitAccount?
 
   @@map("users")
 }
@@ -487,4 +488,79 @@ model NotificationPreference {
 
   @@unique([userId, channel])
   @@map("notification_preferences")
+}
+
+// --- Phase 7: Benefits ------------------------------------------------------
+//
+// TASK-057 Benefit Ledger, TASK-058 Benefit Redemption (FR-054..FR-058,
+// BR-038/BR-039). Deliberately only the 3 tables the ERD (CLAUDE.md #8)
+// actually names — there is no separate "benefits" table: a Benefit is a
+// read model derived at query time from a GRANT BenefitLedgerEntry plus,
+// once it exists, the single debit entry that closed it out (see
+// @passasorte/domain's benefit.entity.ts `deriveBenefitFromLedger`).
+// What earns a benefit, how much, and its expiration stay exactly as
+// undecided as CLAUDE.md #58 declares — this schema only persists the
+// grant/ledger/redemption mechanism an OPERATOR/ADMIN/FINANCE action
+// supplies explicitly.
+
+/// FR-055 Benefit Ledger: one account per user (1:1, created lazily).
+/// Carries no balance column of its own (BR-039).
+model BenefitAccount {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  ledgerEntries BenefitLedgerEntry[]
+  redemptions   BenefitRedemption[]
+
+  @@map("benefit_accounts")
+}
+
+/// BR-039: append-only, immutable. A GRANT row is both the credit AND
+/// the grant's own metadata (reason/sourceRef/expiresAt); a debit row
+/// (REDEMPTION/EXPIRATION/REVERSAL) references the GRANT row it closes
+/// out via `grantEntryId`. The unique constraint on `grantEntryId`
+/// (Postgres allows unlimited NULLs under a unique index — every GRANT
+/// row has grantEntryId = null) is what guarantees at most ONE debit per
+/// grant even under concurrent redeem/expire attempts — the same
+/// "constraint as atomic-claim backstop" pattern as PositionHold
+/// (BR-010) and FinalMovementPlan.
+model BenefitLedgerEntry {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId       String    @map("account_id") @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  type            String
+  amountMinorUnits Int      @map("amount_minor_units")
+  reason          String?
+  sourceRef       String?   @map("source_ref")
+  expiresAt       DateTime? @map("expires_at")
+  grantEntryId    String?   @unique @map("grant_entry_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  account    BenefitAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  grantEntry BenefitLedgerEntry? @relation("BenefitLedgerEntryDebit", fields: [grantEntryId], references: [id], onDelete: Restrict)
+  debitEntry BenefitLedgerEntry? @relation("BenefitLedgerEntryDebit")
+
+  @@index([accountId])
+  @@index([expiresAt])
+  @@map("benefit_ledger_entries")
+}
+
+/// FR-057/FR-058: one row per completed redemption — an audit record
+/// distinct from the ledger's REDEMPTION entry (which is what actually
+/// moves the balance). Replay protection is the existing
+/// IdempotencyKey/Idempotency-Key mechanism (FR-038/BR-037), not a
+/// column on this table.
+model BenefitRedemption {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId       String   @map("account_id") @db.Uuid
+  benefitId       String   @map("benefit_id") @db.Uuid
+  amountMinorUnits Int     @map("amount_minor_units")
+  redeemedAt      DateTime @default(now()) @map("redeemed_at")
+
+  account BenefitAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@map("benefit_redemptions")
 }

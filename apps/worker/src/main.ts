@@ -7,6 +7,7 @@ import { PrismaPositionHoldRepository } from "./infrastructure/prisma/repositori
 import { PrismaGameRunRepository } from "./infrastructure/prisma/repositories/game-run.repository.js";
 import { PrismaOutboxRepository } from "./infrastructure/prisma/repositories/outbox.repository.js";
 import { PrismaNotificationRepository } from "./infrastructure/prisma/repositories/notification.repository.js";
+import { PrismaBenefitLedgerRepository } from "./infrastructure/prisma/repositories/benefit.repository.js";
 import { resolveNotificationProviders } from "./infrastructure/notifications/notification-provider-registry.js";
 import { runSchedulerTick } from "./scheduler.js";
 
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
   const gameRunRepository = new PrismaGameRunRepository(prisma);
   const outboxRepository = new PrismaOutboxRepository(prisma);
   const notificationRepository = new PrismaNotificationRepository(prisma);
+  const benefitLedgerRepository = new PrismaBenefitLedgerRepository(prisma);
   const notificationProviders = resolveNotificationProviders();
 
   logger.info(
@@ -50,6 +52,7 @@ async function main(): Promise<void> {
         outboxReader: outboxRepository,
         notificationRepository,
         notificationProviders,
+        benefitLedgerRepository,
         logger,
         gameAutoAdvanceEnabled: config.featureFlags.ENABLE_GAME_AUTO_ADVANCE,
         outboxBatchSize: config.worker.outboxBatchSize,

@@ -7,4 +7,5 @@ export type RootStackParamList = {
   LiveGame: { participationId: string };
   FinalLock: { participationId: string };
   Result: { participationId: string };
+  Benefits: undefined;
 };

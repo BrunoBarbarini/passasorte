@@ -10,6 +10,7 @@ import { ParticipationConfirmationScreen } from "../screens/ParticipationConfirm
 import { LiveGameScreen } from "../screens/LiveGameScreen.js";
 import { FinalLockScreen } from "../screens/FinalLockScreen.js";
 import { ResultScreen } from "../screens/ResultScreen.js";
+import { BenefitsScreen } from "../screens/BenefitsScreen.js";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -42,6 +43,11 @@ export function RootNavigator(): React.JSX.Element {
           options={{ title: "Travamento final" }}
         />
         <Stack.Screen name="Result" component={ResultScreen} options={{ title: "Resultado" }} />
+        <Stack.Screen
+          name="Benefits"
+          component={BenefitsScreen}
+          options={{ title: "Benefícios" }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

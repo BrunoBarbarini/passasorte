@@ -14,13 +14,23 @@ import { PrismaParticipationRepository } from "./prisma/repositories/participati
 import { PrismaIdempotencyRepository } from "./prisma/repositories/idempotency.repository.js";
 import { PrismaGameRunRepository } from "./prisma/repositories/game-run.repository.js";
 import { PrismaNotificationRepository } from "./prisma/repositories/notification.repository.js";
+import {
+  PrismaBenefitAccountRepository,
+  PrismaBenefitLedgerRepository,
+  PrismaBenefitRedemptionRepository,
+} from "./prisma/repositories/benefit.repository.js";
+import type { FeatureFlags } from "@passasorte/config";
 import { SupabaseAuthAdapter } from "./auth/supabase-auth.adapter.js";
 import { resolveNotificationProviders } from "./notifications/notification-provider-registry.js";
 import {
   AUDIT_LOG_PORT,
   AUTH_PORT,
+  BENEFIT_ACCOUNT_REPOSITORY,
+  BENEFIT_LEDGER_REPOSITORY,
+  BENEFIT_REDEMPTION_REPOSITORY,
   CAMPAIGN_REPOSITORY,
   EXPERIENCE_REPOSITORY,
+  FEATURE_FLAGS,
   GAME_RUN_REPOSITORY,
   IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
@@ -42,6 +52,11 @@ const authPortProvider: Provider = {
 const notificationProvidersProvider: Provider = {
   provide: NOTIFICATION_PROVIDERS,
   useFactory: (): readonly NotificationProvider[] => resolveNotificationProviders(),
+};
+
+const featureFlagsProvider: Provider = {
+  provide: FEATURE_FLAGS,
+  useFactory: (): FeatureFlags => loadConfig().featureFlags,
 };
 
 /**
@@ -68,6 +83,10 @@ const notificationProvidersProvider: Provider = {
     { provide: GAME_RUN_REPOSITORY, useClass: PrismaGameRunRepository },
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     notificationProvidersProvider,
+    { provide: BENEFIT_ACCOUNT_REPOSITORY, useClass: PrismaBenefitAccountRepository },
+    { provide: BENEFIT_LEDGER_REPOSITORY, useClass: PrismaBenefitLedgerRepository },
+    { provide: BENEFIT_REDEMPTION_REPOSITORY, useClass: PrismaBenefitRedemptionRepository },
+    featureFlagsProvider,
   ],
   exports: [
     PrismaService,
@@ -86,6 +105,10 @@ const notificationProvidersProvider: Provider = {
     GAME_RUN_REPOSITORY,
     NOTIFICATION_REPOSITORY,
     NOTIFICATION_PROVIDERS,
+    BENEFIT_ACCOUNT_REPOSITORY,
+    BENEFIT_LEDGER_REPOSITORY,
+    BENEFIT_REDEMPTION_REPOSITORY,
+    FEATURE_FLAGS,
   ],
 })
 export class InfrastructureModule {}

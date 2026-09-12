@@ -26,6 +26,13 @@
  * pluggable seams from Phases 2/3 (nothing about them is decided here);
  * Phase 5 only adds what is needed to actually RUN those seams against
  * persisted state and record who was notified.
+ *
+ * Phase 7 scope: Benefits (BenefitAccount/BenefitLedgerEntry/
+ * BenefitRedemption). BR-039: a "Benefit" is a read model derived from
+ * its GRANT ledger entry, never its own mutable row. What earns a
+ * benefit, how much, and when it expires stay exactly as undecided as
+ * CLAUDE.md #58 declares (benefit percentage/expiration/funding) — only
+ * the grant/ledger/redemption mechanism is exported here.
  */
 export * from "./identity/role.js";
 export * from "./identity/user.entity.js";
@@ -55,3 +62,8 @@ export * from "./participation/participation-package.js";
 export * from "./participation/movement-allocation.entity.js";
 export * from "./participation/movement-command-submission.js";
 export * from "./notification/notification.entity.js";
+export * from "./benefit/benefit-state-machine.js";
+export * from "./benefit/benefit-account.entity.js";
+export * from "./benefit/benefit-ledger-entry.entity.js";
+export * from "./benefit/benefit.entity.js";
+export * from "./benefit/benefit-redemption.entity.js";

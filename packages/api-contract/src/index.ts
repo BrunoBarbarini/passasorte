@@ -5,3 +5,4 @@ export * from "./campaigns.js";
 export * from "./rooms.js";
 export * from "./participations.js";
 export * from "./notifications.js";
+export * from "./benefits.js";

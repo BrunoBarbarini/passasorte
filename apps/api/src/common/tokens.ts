@@ -18,3 +18,7 @@ export const IDEMPOTENCY_PORT = Symbol("IdempotencyPort");
 export const GAME_RUN_REPOSITORY = Symbol("GameRunRepository");
 export const NOTIFICATION_REPOSITORY = Symbol("NotificationRepository");
 export const NOTIFICATION_PROVIDERS = Symbol("NotificationProviders");
+export const BENEFIT_ACCOUNT_REPOSITORY = Symbol("BenefitAccountRepository");
+export const BENEFIT_LEDGER_REPOSITORY = Symbol("BenefitLedgerRepository");
+export const BENEFIT_REDEMPTION_REPOSITORY = Symbol("BenefitRedemptionRepository");
+export const FEATURE_FLAGS = Symbol("FeatureFlags");
