@@ -22,3 +22,5 @@ export const BENEFIT_ACCOUNT_REPOSITORY = Symbol("BenefitAccountRepository");
 export const BENEFIT_LEDGER_REPOSITORY = Symbol("BenefitLedgerRepository");
 export const BENEFIT_REDEMPTION_REPOSITORY = Symbol("BenefitRedemptionRepository");
 export const FEATURE_FLAGS = Symbol("FeatureFlags");
+export const SECURITY_CONFIG = Symbol("SecurityConfig");
+export const ANALYTICS_PORT = Symbol("AnalyticsPort");

@@ -22,6 +22,7 @@ export * from "./ports/game-run-repository.port.js";
 export * from "./ports/notification-repository.port.js";
 export * from "./ports/notification-provider.port.js";
 export * from "./ports/benefit-repository.port.js";
+export * from "./ports/analytics.port.js";
 
 export * from "./use-cases/identity/authenticate-request.use-case.js";
 

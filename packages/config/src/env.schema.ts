@@ -87,6 +87,42 @@ export const EnvSchema = z.object({
   WORKER_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
   WORKER_OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(50),
 
+  /// Phase 8 / TASK-045 Product Analytics SDK. CLAUDE.md #13 lists
+  /// PostHog as an ASSUMPTION (not yet a confirmed DECISION like
+  /// Supabase Auth) - so, mirroring the notification-provider registry
+  /// pattern (CLAUDE.md #3.12), the adapter is real but stays inert
+  /// (no-op) until a project key is actually configured. No default key
+  /// is invented here.
+  POSTHOG_API_KEY: z.string().optional(),
+  POSTHOG_HOST: z.string().url().default("https://us.i.posthog.com"),
+
+  /// Phase 8 / TASK-061 Privileged MFA. CLAUDE.md #17: "Privileged roles
+  /// require MFA in production" - a FACT, not a toggle a deployer should
+  /// be able to silently disable in prod. Left unset, this defaults to
+  /// on in production and off elsewhere (local/dev/staging can still run
+  /// without every operator having enrolled MFA yet); an explicit value
+  /// always wins in either direction.
+  REQUIRE_MFA_FOR_PRIVILEGED_ROLES: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim().toLowerCase())
+    .pipe(z.enum(["true", "1", "false", "0", ""]).optional()),
+
+  /// Phase 8 / TASK-060 Rate Limiting. Operational/infra pacing (like
+  /// WORKER_POLL_INTERVAL_MS above), never a business rule, so an env
+  /// var is appropriate (CLAUDE.md #42 only forbids env vars for
+  /// business constants). Applied globally by @fastify/rate-limit in
+  /// apps/api's bootstrap - see main.ts.
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+
+  /// Phase 8 / TASK-059 Security Hardening. Comma-separated allow-list of
+  /// origins allowed to call this API from a browser (apps/web is the
+  /// only known browser caller so far). Empty by default - "deny by
+  /// default" (CLAUDE.md #18) - a deployment must explicitly opt an
+  /// origin in.
+  CORS_ALLOWED_ORIGINS: z.string().optional(),
+
   ...FeatureFlagsSchema.shape,
 });
 export type Env = z.infer<typeof EnvSchema>;

@@ -35,6 +35,12 @@ export class AuthenticateRequestUseCase {
       throw new UnauthenticatedError();
     }
 
-    return authenticated;
+    // The persisted user row has no notion of "this specific token's"
+    // assurance level - only the just-verified identity does, so it
+    // always wins over whatever findAuthenticatedById defaulted to.
+    return {
+      ...authenticated,
+      authenticationAssuranceLevel: identity.authenticationAssuranceLevel,
+    };
   }
 }

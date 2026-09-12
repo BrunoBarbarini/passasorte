@@ -2,6 +2,7 @@
   "name": "@passasorte/analytics",
   "version": "0.0.0",
   "private": true,
+  "description": "Product analytics port + PostHog adapter (CLAUDE.md #20, TASK-045). Inert (no-op) until POSTHOG_API_KEY is configured - see CLAUDE.md #13, analytics provider is still an ASSUMPTION, not a confirmed decision.",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -16,8 +17,12 @@
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo"
+  },
+  "dependencies": {
+    "@passasorte/application": "workspace:*",
+    "posthog-node": "^4.2.1"
   },
   "devDependencies": {
     "typescript": "^5.7.2",

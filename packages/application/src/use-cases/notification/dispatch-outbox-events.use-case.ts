@@ -2,6 +2,12 @@ import type { NotificationChannel } from "@passasorte/domain";
 import type { OutboxEventRecord, OutboxReaderPort } from "../../ports/outbox.port.js";
 import type { NotificationRepository } from "../../ports/notification-repository.port.js";
 import type { NotificationProvider } from "../../ports/notification-provider.port.js";
+import {
+  NOOP_ANALYTICS_PORT,
+  redactSensitiveProperties,
+  type AnalyticsEventName,
+  type AnalyticsPort,
+} from "../../ports/analytics.port.js";
 
 export interface DispatchOutboxEventsCommand {
   batchSize?: number;
@@ -37,6 +43,29 @@ const NOTIFICATION_COPY_BY_EVENT_TYPE: Record<string, CopyResolver> = {
 };
 
 /**
+ * TASK-046 Core Funnel Events. Maps the outbox event types this codebase
+ * already publishes (each one a real, already-implemented backend
+ * mutation - see hold-positions/create-participation/confirm-
+ * participation/submit-movement-command/submit-final-movement-command/
+ * grant-benefit/redeem-benefit use cases) onto CLAUDE.md #20's canonical
+ * analytics event catalog. An outbox event type with no entry here is
+ * simply not tracked as an analytics event yet (e.g. "room.completed",
+ * "benefit.expired") - never assumed to map to something.
+ */
+const OUTBOX_EVENT_TYPE_TO_ANALYTICS_EVENT: Partial<Record<string, AnalyticsEventName>> = {
+  "position.hold_created": "position_hold_created",
+  "position.hold_failed": "position_hold_failed",
+  "participation.started": "participation_started",
+  "participation.confirmed": "participation_confirmed",
+  "movement.accepted": "movement_accepted",
+  "movement.rejected": "movement_rejected",
+  "participation.final_plan_submitted": "final_plan_submitted",
+  "participation.won": "prize_won",
+  "benefit.granted": "benefit_granted",
+  "benefit.redeemed": "benefit_redeemed",
+};
+
+/**
  * TASK-033 Outbox Worker + TASK-035 Notification Infrastructure. CLAUDE.md
  * #29: "Domain Event -> Transactional Outbox -> Queue -> Notification
  * Worker -> Provider" — this use case IS that worker step. It claims
@@ -55,6 +84,7 @@ export class DispatchOutboxEventsUseCase {
     private readonly outboxReader: OutboxReaderPort,
     private readonly notifications: NotificationRepository,
     private readonly providers: readonly NotificationProvider[] = [],
+    private readonly analytics: AnalyticsPort = NOOP_ANALYTICS_PORT,
   ) {}
 
   async execute(command: DispatchOutboxEventsCommand = {}): Promise<number> {
@@ -75,6 +105,14 @@ export class DispatchOutboxEventsUseCase {
   }
 
   private async dispatchOne(event: OutboxEventRecord): Promise<void> {
+    // CLAUDE.md #29's pipeline extended one step: "Domain Event ->
+    // Transactional Outbox -> Queue -> Notification/Analytics Worker ->
+    // Provider". Runs for every claimed event, independent of whether it
+    // also becomes a notification below - a "rejected"/"failed" event
+    // (e.g. movement.rejected) has no notification copy but is still a
+    // real product KPI (CLAUDE.md #20 "movement usage").
+    await this.trackAnalytics(event);
+
     const resolveCopy = NOTIFICATION_COPY_BY_EVENT_TYPE[event.eventType];
     const userId = event.payload.userId;
     if (!resolveCopy || typeof userId !== "string") {
@@ -100,5 +138,19 @@ export class DispatchOutboxEventsUseCase {
       if (preference?.enabled === false) continue;
       await provider.send({ userId, title: copy.title, body: copy.body, data: event.payload });
     }
+  }
+
+  private async trackAnalytics(event: OutboxEventRecord): Promise<void> {
+    const analyticsEvent = OUTBOX_EVENT_TYPE_TO_ANALYTICS_EVENT[event.eventType];
+    if (!analyticsEvent) return;
+
+    const userId = event.payload.userId;
+    const distinctId = typeof userId === "string" ? userId : event.aggregateId;
+
+    await this.analytics.track({
+      event: analyticsEvent,
+      distinctId,
+      properties: redactSensitiveProperties(event.payload),
+    });
   }
 }

@@ -5,6 +5,7 @@ import {
   type Position,
 } from "@passasorte/domain";
 import type { ParticipationRepository } from "../../ports/participation-repository.port.js";
+import { NOOP_OUTBOX_PORT, type OutboxPort } from "../../ports/outbox.port.js";
 import { ValidationError } from "../../errors.js";
 
 export interface CreateParticipationCommand {
@@ -31,7 +32,10 @@ export interface CreateParticipationCommand {
  * on it is Phase 6's job, not something to guess at here.
  */
 export class CreateParticipationUseCase {
-  constructor(private readonly participationRepository: ParticipationRepository) {}
+  constructor(
+    private readonly participationRepository: ParticipationRepository,
+    private readonly outbox: OutboxPort = NOOP_OUTBOX_PORT,
+  ) {}
 
   async execute(command: CreateParticipationCommand): Promise<Participation> {
     if (command.positions.length !== command.package.positionCount) {
@@ -64,6 +68,18 @@ export class CreateParticipationUseCase {
       movementAllowance: command.package.movementAllowance,
     });
     await this.participationRepository.transition(created.id, "RESERVED");
-    return this.participationRepository.transition(created.id, "AWAITING_REQUIREMENT");
+    const result = await this.participationRepository.transition(
+      created.id,
+      "AWAITING_REQUIREMENT",
+    );
+
+    await this.outbox.publish({
+      aggregateType: "Participation",
+      aggregateId: created.id,
+      eventType: "participation.started",
+      payload: { userId: command.userId, roomId: command.roomId, participationId: created.id },
+    });
+
+    return result;
   }
 }

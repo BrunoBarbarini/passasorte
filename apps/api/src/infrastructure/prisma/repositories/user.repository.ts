@@ -41,6 +41,11 @@ export class PrismaUserRepository implements UserRepository {
     return {
       user: toDomainUser(row),
       roles: row.roles.map((r) => r.role),
+      // Not known at the persistence layer - this is a per-request token
+      // claim, not stored per user. AuthenticateRequestUseCase overwrites
+      // it with the real value from the verified access token right
+      // after this call returns (see auth.port.ts/roles.guard.ts).
+      authenticationAssuranceLevel: "aal1",
     };
   }
 }

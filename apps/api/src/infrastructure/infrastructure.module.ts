@@ -19,10 +19,13 @@ import {
   PrismaBenefitLedgerRepository,
   PrismaBenefitRedemptionRepository,
 } from "./prisma/repositories/benefit.repository.js";
-import type { FeatureFlags } from "@passasorte/config";
+import type { AppConfig, FeatureFlags } from "@passasorte/config";
+import { createAnalyticsAdapter } from "@passasorte/analytics";
+import type { AnalyticsPort } from "@passasorte/application";
 import { SupabaseAuthAdapter } from "./auth/supabase-auth.adapter.js";
 import { resolveNotificationProviders } from "./notifications/notification-provider-registry.js";
 import {
+  ANALYTICS_PORT,
   AUDIT_LOG_PORT,
   AUTH_PORT,
   BENEFIT_ACCOUNT_REPOSITORY,
@@ -41,6 +44,7 @@ import {
   PARTICIPATION_REPOSITORY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
+  SECURITY_CONFIG,
   USER_REPOSITORY,
 } from "../common/tokens.js";
 
@@ -57,6 +61,22 @@ const notificationProvidersProvider: Provider = {
 const featureFlagsProvider: Provider = {
   provide: FEATURE_FLAGS,
   useFactory: (): FeatureFlags => loadConfig().featureFlags,
+};
+
+const securityConfigProvider: Provider = {
+  provide: SECURITY_CONFIG,
+  useFactory: (): AppConfig["security"] => loadConfig().security,
+};
+
+const analyticsPortProvider: Provider = {
+  provide: ANALYTICS_PORT,
+  useFactory: (): AnalyticsPort => {
+    const config = loadConfig();
+    return createAnalyticsAdapter({
+      apiKey: config.analytics.posthogApiKey,
+      host: config.analytics.posthogHost,
+    });
+  },
 };
 
 /**
@@ -87,6 +107,8 @@ const featureFlagsProvider: Provider = {
     { provide: BENEFIT_LEDGER_REPOSITORY, useClass: PrismaBenefitLedgerRepository },
     { provide: BENEFIT_REDEMPTION_REPOSITORY, useClass: PrismaBenefitRedemptionRepository },
     featureFlagsProvider,
+    securityConfigProvider,
+    analyticsPortProvider,
   ],
   exports: [
     PrismaService,
@@ -109,6 +131,8 @@ const featureFlagsProvider: Provider = {
     BENEFIT_LEDGER_REPOSITORY,
     BENEFIT_REDEMPTION_REPOSITORY,
     FEATURE_FLAGS,
+    SECURITY_CONFIG,
+    ANALYTICS_PORT,
   ],
 })
 export class InfrastructureModule {}

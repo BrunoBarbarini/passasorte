@@ -34,6 +34,18 @@ export interface AppConfig {
     pollIntervalMs: number;
     outboxBatchSize: number;
   };
+  analytics: {
+    posthogApiKey: string | undefined;
+    posthogHost: string;
+  };
+  security: {
+    requireMfaForPrivilegedRoles: boolean;
+    rateLimit: {
+      max: number;
+      windowMs: number;
+    };
+    corsAllowedOrigins: string[];
+  };
   featureFlags: FeatureFlags;
 }
 
@@ -81,6 +93,26 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     worker: {
       pollIntervalMs: env.WORKER_POLL_INTERVAL_MS,
       outboxBatchSize: env.WORKER_OUTBOX_BATCH_SIZE,
+    },
+    analytics: {
+      posthogApiKey: env.POSTHOG_API_KEY,
+      posthogHost: env.POSTHOG_HOST,
+    },
+    security: {
+      requireMfaForPrivilegedRoles:
+        env.REQUIRE_MFA_FOR_PRIVILEGED_ROLES === undefined ||
+        env.REQUIRE_MFA_FOR_PRIVILEGED_ROLES === ""
+          ? env.NODE_ENV === "production"
+          : env.REQUIRE_MFA_FOR_PRIVILEGED_ROLES === "true" ||
+            env.REQUIRE_MFA_FOR_PRIVILEGED_ROLES === "1",
+      rateLimit: {
+        max: env.RATE_LIMIT_MAX,
+        windowMs: env.RATE_LIMIT_WINDOW_MS,
+      },
+      corsAllowedOrigins: (env.CORS_ALLOWED_ORIGINS ?? "")
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter((origin) => origin.length > 0),
     },
     featureFlags: {
       ENABLE_NEW_PARTICIPATIONS: env.ENABLE_NEW_PARTICIPATIONS,

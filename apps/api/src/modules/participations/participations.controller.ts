@@ -13,6 +13,7 @@ import {
   SubmitFinalMovementCommandUseCase,
   SubmitMovementCommandUseCase,
   ValidationError,
+  type OutboxPort,
   type ParticipationRepository,
   type PositionHoldRepository,
   type IdempotencyPort,
@@ -27,6 +28,7 @@ import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import {
   IDEMPOTENCY_PORT,
+  OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
@@ -49,6 +51,7 @@ export class ParticipationsController {
     @Inject(PARTICIPATION_REPOSITORY)
     private readonly participationRepository: ParticipationRepository,
     @Inject(IDEMPOTENCY_PORT) private readonly idempotency: IdempotencyPort,
+    @Inject(OUTBOX_PORT) private readonly outbox: OutboxPort,
   ) {}
 
   @Post("rooms/:roomId/participations")
@@ -83,7 +86,7 @@ export class ParticipationsController {
       }
     }
 
-    return new CreateParticipationUseCase(this.participationRepository).execute({
+    return new CreateParticipationUseCase(this.participationRepository, this.outbox).execute({
       roomId,
       userId: user.user.id,
       package: selectedPackage,
@@ -100,6 +103,7 @@ export class ParticipationsController {
     return new ConfirmParticipationUseCase(
       this.participationRepository,
       this.holdRepository,
+      this.outbox,
     ).execute({
       participationId: id,
     });
@@ -135,18 +139,20 @@ export class ParticipationsController {
       });
     }
     const input = parseWithSchema(SubmitMovementSchema, body);
-    return new SubmitMovementCommandUseCase(this.participationRepository, this.idempotency).execute(
-      {
+    return new SubmitMovementCommandUseCase(
+      this.participationRepository,
+      this.idempotency,
+      this.outbox,
+    ).execute({
+      participationId: id,
+      command: {
         participationId: id,
-        command: {
-          participationId: id,
-          positionIndex: input.positionIndex,
-          direction: input.direction,
-          sequence: input.sequence,
-        },
-        idempotencyKey,
+        positionIndex: input.positionIndex,
+        direction: input.direction,
+        sequence: input.sequence,
       },
-    );
+      idempotencyKey,
+    });
   }
 
   @Post("participations/:id/final-movement")
@@ -160,6 +166,7 @@ export class ParticipationsController {
     return new SubmitFinalMovementCommandUseCase(
       this.roomRepository,
       this.participationRepository,
+      this.outbox,
     ).execute({
       participationId: id,
       commands: input.commands.map((c) => ({

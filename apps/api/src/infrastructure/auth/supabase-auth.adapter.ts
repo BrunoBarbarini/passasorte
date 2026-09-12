@@ -1,5 +1,9 @@
 import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
-import { InvalidAccessTokenError, type AuthPort, type VerifiedIdentity } from "@passasorte/application";
+import {
+  InvalidAccessTokenError,
+  type AuthPort,
+  type VerifiedIdentity,
+} from "@passasorte/application";
 
 /**
  * Verifies Supabase Auth access tokens against the project's JWKS
@@ -27,7 +31,9 @@ export class SupabaseAuthAdapter implements AuthPort {
     try {
       ({ payload } = await jwtVerify(token, this.jwks, { issuer: this.issuer }));
     } catch (error) {
-      throw new InvalidAccessTokenError(error instanceof Error ? error.message : "verificação falhou");
+      throw new InvalidAccessTokenError(
+        error instanceof Error ? error.message : "verificação falhou",
+      );
     }
 
     const supabaseUserId = typeof payload.sub === "string" ? payload.sub : undefined;
@@ -37,6 +43,13 @@ export class SupabaseAuthAdapter implements AuthPort {
       throw new InvalidAccessTokenError("claims obrigatórias (sub, email) ausentes no token");
     }
 
-    return { supabaseUserId, email };
+    // CLAUDE.md #17: "Privileged roles require MFA in production."
+    // Supabase issues this as the `aal` claim once a user completes an
+    // MFA challenge ("aal2"); a token that predates MFA enrollment, or
+    // any unrecognized value, is treated as the more restrictive "aal1"
+    // rather than trusting an absent/malformed claim.
+    const authenticationAssuranceLevel = payload.aal === "aal2" ? "aal2" : "aal1";
+
+    return { supabaseUserId, email, authenticationAssuranceLevel };
   }
 }

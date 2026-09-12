@@ -7,6 +7,7 @@ import {
 } from "@passasorte/domain";
 import type { ParticipationRepository } from "../../ports/participation-repository.port.js";
 import type { IdempotencyPort } from "../../ports/idempotency.port.js";
+import { NOOP_OUTBOX_PORT, type OutboxPort } from "../../ports/outbox.port.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
 
 export interface SubmitMovementCommandInput {
@@ -34,6 +35,7 @@ export class SubmitMovementCommandUseCase {
   constructor(
     private readonly participationRepository: ParticipationRepository,
     private readonly idempotency: IdempotencyPort,
+    private readonly outbox: OutboxPort = NOOP_OUTBOX_PORT,
   ) {}
 
   async execute(input: SubmitMovementCommandInput): Promise<SubmitMovementCommandResult> {
@@ -42,7 +44,21 @@ export class SubmitMovementCommandUseCase {
       throw new NotFoundError("Participation", input.participationId);
     }
 
-    assertValidMovementSubmission(participation, input.command);
+    try {
+      assertValidMovementSubmission(participation, input.command);
+    } catch (error) {
+      await this.outbox.publish({
+        aggregateType: "Participation",
+        aggregateId: participation.id,
+        eventType: "movement.rejected",
+        payload: {
+          userId: participation.userId,
+          participationId: participation.id,
+          reason: error instanceof Error ? error.message : "unknown",
+        },
+      });
+      throw error;
+    }
 
     const isFirstSubmission = await this.idempotency.record(input.idempotencyKey);
     if (!isFirstSubmission) {
@@ -56,6 +72,19 @@ export class SubmitMovementCommandUseCase {
       participation.id,
       newAllocation,
     );
+
+    await this.outbox.publish({
+      aggregateType: "Participation",
+      aggregateId: participation.id,
+      eventType: "movement.accepted",
+      payload: {
+        userId: participation.userId,
+        participationId: participation.id,
+        direction: input.command.direction,
+        sequence: input.command.sequence,
+      },
+    });
+
     return { participation: updated };
   }
 }

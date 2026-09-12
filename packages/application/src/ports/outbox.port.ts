@@ -14,6 +14,18 @@ export interface OutboxPort {
   publish(input: PublishOutboxEventInput): Promise<void>;
 }
 
+/**
+ * Safe default for use cases that accept an optional OutboxPort (Phase 8
+ * added outbox publishing to several existing use cases without forcing
+ * every existing call site/test to start passing one - CLAUDE.md #47
+ * "smallest correct change").
+ */
+export const NOOP_OUTBOX_PORT: OutboxPort = {
+  async publish() {
+    /* no-op */
+  },
+};
+
 /** TASK-033 Outbox Worker: the write-side of an already-published event. */
 export interface OutboxEventRecord {
   readonly id: string;

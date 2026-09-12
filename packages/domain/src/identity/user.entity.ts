@@ -31,10 +31,22 @@ export interface UserRoleGrant {
   grantedByUserId: string | null;
 }
 
+/**
+ * Authentication Assurance Level of the current request's Supabase
+ * session (RFC 9470-ish: "aal1" = single factor, "aal2" = MFA
+ * challenge completed). Supabase Auth issues this as the JWT's `aal`
+ * claim; PassaSorte never implements MFA itself (CLAUDE.md #17), it only
+ * reads this to decide whether a privileged action may proceed
+ * (CLAUDE.md #17 "Privileged roles require MFA in production" - see
+ * RolesGuard/PRIVILEGED_ROLE_KEYS).
+ */
+export type AuthenticationAssuranceLevel = "aal1" | "aal2";
+
 /** A User together with the roles currently granted to it. */
 export interface AuthenticatedUser {
   user: User;
   roles: RoleKey[];
+  authenticationAssuranceLevel: AuthenticationAssuranceLevel;
 }
 
 export function hasRole(authenticated: AuthenticatedUser, role: RoleKey): boolean {

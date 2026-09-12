@@ -3,6 +3,7 @@ import {
   DispatchOutboxEventsUseCase,
   ExpireBenefitsUseCase,
   ExpirePositionHoldsUseCase,
+  type AnalyticsPort,
   type BenefitLedgerRepository,
   type GameRunRepository,
   type NotificationProvider,
@@ -25,6 +26,7 @@ export interface SchedulerDeps {
   notificationRepository: NotificationRepository;
   notificationProviders: readonly NotificationProvider[];
   benefitLedgerRepository: BenefitLedgerRepository;
+  analytics: AnalyticsPort;
   logger: Logger;
   /** CLAUDE.md #22 kill switch, default OFF — only gates the game-progression half of this tick. */
   gameAutoAdvanceEnabled: boolean;
@@ -53,6 +55,7 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
     deps.outboxReader,
     deps.notificationRepository,
     deps.notificationProviders,
+    deps.analytics,
   ).execute({ batchSize: deps.outboxBatchSize });
   if (dispatched > 0) {
     deps.logger.info(

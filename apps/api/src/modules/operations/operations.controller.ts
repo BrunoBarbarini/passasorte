@@ -4,6 +4,7 @@ import {
   DispatchOutboxEventsUseCase,
   ExpirePositionHoldsUseCase,
   ValidationError,
+  type AnalyticsPort,
   type GameRunRepository,
   type NotificationProvider,
   type NotificationRepository,
@@ -18,6 +19,7 @@ import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
+  ANALYTICS_PORT,
   GAME_RUN_REPOSITORY,
   NOTIFICATION_PROVIDERS,
   NOTIFICATION_REPOSITORY,
@@ -63,6 +65,7 @@ export class OperationsController {
     @Inject(NOTIFICATION_REPOSITORY) private readonly notifications: NotificationRepository,
     @Inject(NOTIFICATION_PROVIDERS)
     private readonly notificationProviders: readonly NotificationProvider[],
+    @Inject(ANALYTICS_PORT) private readonly analytics: AnalyticsPort,
   ) {}
 
   @Get("rooms")
@@ -99,6 +102,7 @@ export class OperationsController {
       this.outboxReader,
       this.notifications,
       this.notificationProviders,
+      this.analytics,
     ).execute({});
   }
 }

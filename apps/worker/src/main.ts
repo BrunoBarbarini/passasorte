@@ -1,5 +1,6 @@
 import { loadConfig } from "@passasorte/config";
 import { createLogger } from "@passasorte/observability";
+import { createAnalyticsAdapter } from "@passasorte/analytics";
 import { prisma } from "./infrastructure/prisma-client.js";
 import { PrismaRoomRepository } from "./infrastructure/prisma/repositories/room.repository.js";
 import { PrismaParticipationRepository } from "./infrastructure/prisma/repositories/participation.repository.js";
@@ -29,6 +30,10 @@ async function main(): Promise<void> {
   const notificationRepository = new PrismaNotificationRepository(prisma);
   const benefitLedgerRepository = new PrismaBenefitLedgerRepository(prisma);
   const notificationProviders = resolveNotificationProviders();
+  const analytics = createAnalyticsAdapter({
+    apiKey: config.analytics.posthogApiKey,
+    host: config.analytics.posthogHost,
+  });
 
   logger.info(
     {
@@ -53,6 +58,7 @@ async function main(): Promise<void> {
         notificationRepository,
         notificationProviders,
         benefitLedgerRepository,
+        analytics,
         logger,
         gameAutoAdvanceEnabled: config.featureFlags.ENABLE_GAME_AUTO_ADVANCE,
         outboxBatchSize: config.worker.outboxBatchSize,

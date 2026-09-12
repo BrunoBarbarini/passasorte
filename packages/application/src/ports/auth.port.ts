@@ -7,6 +7,13 @@
 export interface VerifiedIdentity {
   supabaseUserId: string;
   email: string;
+  /**
+   * Supabase Auth's JWT `aal` claim ("aal1"/"aal2" - CLAUDE.md #17
+   * privileged-role MFA). Adapters that cannot determine it (e.g. a
+   * legacy token predating MFA) must default to "aal1", the more
+   * restrictive assumption.
+   */
+  authenticationAssuranceLevel: "aal1" | "aal2";
 }
 
 export class InvalidAccessTokenError extends Error {

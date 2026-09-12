@@ -1,6 +1,7 @@
 import { assertParticipationTransition, type Participation } from "@passasorte/domain";
 import type { ParticipationRepository } from "../../ports/participation-repository.port.js";
 import type { PositionHoldRepository } from "../../ports/position-hold-repository.port.js";
+import { NOOP_OUTBOX_PORT, type OutboxPort } from "../../ports/outbox.port.js";
 import { NotFoundError } from "../../errors.js";
 
 export interface ConfirmParticipationCommand {
@@ -22,6 +23,7 @@ export class ConfirmParticipationUseCase {
   constructor(
     private readonly participationRepository: ParticipationRepository,
     private readonly holdRepository: PositionHoldRepository,
+    private readonly outbox: OutboxPort = NOOP_OUTBOX_PORT,
   ) {}
 
   async execute(command: ConfirmParticipationCommand): Promise<Participation> {
@@ -36,6 +38,22 @@ export class ConfirmParticipationUseCase {
       await this.holdRepository.commitHold(participation.roomId, position);
     }
 
-    return this.participationRepository.transition(command.participationId, "CONFIRMED");
+    const confirmed = await this.participationRepository.transition(
+      command.participationId,
+      "CONFIRMED",
+    );
+
+    await this.outbox.publish({
+      aggregateType: "Participation",
+      aggregateId: confirmed.id,
+      eventType: "participation.confirmed",
+      payload: {
+        userId: confirmed.userId,
+        roomId: confirmed.roomId,
+        participationId: confirmed.id,
+      },
+    });
+
+    return confirmed;
   }
 }

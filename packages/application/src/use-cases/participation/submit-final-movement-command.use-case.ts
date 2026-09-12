@@ -6,6 +6,7 @@ import {
 } from "@passasorte/domain";
 import type { ParticipationRepository } from "../../ports/participation-repository.port.js";
 import type { RoomRepository } from "../../ports/room-repository.port.js";
+import { NOOP_OUTBOX_PORT, type OutboxPort } from "../../ports/outbox.port.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 
 export interface SubmitFinalMovementCommandInput {
@@ -28,6 +29,7 @@ export class SubmitFinalMovementCommandUseCase {
   constructor(
     private readonly roomRepository: RoomRepository,
     private readonly participationRepository: ParticipationRepository,
+    private readonly outbox: OutboxPort = NOOP_OUTBOX_PORT,
   ) {}
 
   async execute(input: SubmitFinalMovementCommandInput): Promise<Participation> {
@@ -63,6 +65,15 @@ export class SubmitFinalMovementCommandUseCase {
       input.atSequence,
     );
 
-    return this.participationRepository.lockFinalMovementPlan(participation.id, plan);
+    const locked = await this.participationRepository.lockFinalMovementPlan(participation.id, plan);
+
+    await this.outbox.publish({
+      aggregateType: "Participation",
+      aggregateId: participation.id,
+      eventType: "participation.final_plan_submitted",
+      payload: { userId: participation.userId, participationId: participation.id },
+    });
+
+    return locked;
   }
 }

@@ -6,6 +6,7 @@ import {
   StartRoomUseCase,
   HoldPositionsUseCase,
   type GameRunRepository,
+  type OutboxPort,
   type ParticipationRepository,
   type PositionHoldRepository,
   type RoomRepository,
@@ -17,6 +18,7 @@ import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
   GAME_RUN_REPOSITORY,
+  OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
@@ -41,6 +43,7 @@ export class RoomsController {
     @Inject(PARTICIPATION_REPOSITORY)
     private readonly participationRepository: ParticipationRepository,
     @Inject(GAME_RUN_REPOSITORY) private readonly gameRunRepository: GameRunRepository,
+    @Inject(OUTBOX_PORT) private readonly outbox: OutboxPort,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -89,7 +92,7 @@ export class RoomsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<readonly PositionHold[]> {
     const input = parseWithSchema(HoldPositionsSchema, body);
-    return new HoldPositionsUseCase(this.roomRepository, this.holdRepository).execute({
+    return new HoldPositionsUseCase(this.roomRepository, this.holdRepository, this.outbox).execute({
       roomId,
       positions: input.positions,
       holderRef: user.user.id,

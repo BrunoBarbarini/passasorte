@@ -58,3 +58,49 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  security:
+    name: Dependency audit, secret scan and SAST (TASK-059)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@12.4.1 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # CLAUDE.md #18/#50: dependency vulnerability scan. Advisory only
+      # (does not fail the job) - pnpm audit's DB regularly flags issues
+      # in transitive dependencies this team does not control the fix
+      # timeline for; the report is what matters, not a hard gate yet.
+      - name: Dependency vulnerability audit
+        run: pnpm audit --audit-level=high || true
+
+      # CLAUDE.md #18: secret scan. Fails the job - a committed secret is
+      # never acceptable, unlike a third-party dependency advisory.
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # CLAUDE.md #18: SAST. Uses Semgrep's free "auto" ruleset (no
+      # Semgrep account/token required) - advisory only for now, same
+      # reasoning as the dependency audit above.
+      - name: SAST (Semgrep)
+        run: |
+          python3 -m pip install --quiet semgrep
+          semgrep --config auto --error --severity ERROR . || true

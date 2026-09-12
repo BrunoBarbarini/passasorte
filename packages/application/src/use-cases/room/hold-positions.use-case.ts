@@ -1,6 +1,7 @@
 import type { Position, PositionHold } from "@passasorte/domain";
 import type { PositionHoldRepository } from "../../ports/position-hold-repository.port.js";
 import type { RoomRepository } from "../../ports/room-repository.port.js";
+import { NOOP_OUTBOX_PORT, type OutboxPort } from "../../ports/outbox.port.js";
 import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 
 export interface HoldPositionsCommand {
@@ -23,6 +24,7 @@ export class HoldPositionsUseCase {
   constructor(
     private readonly roomRepository: RoomRepository,
     private readonly holdRepository: PositionHoldRepository,
+    private readonly outbox: OutboxPort = NOOP_OUTBOX_PORT,
   ) {}
 
   async execute(command: HoldPositionsCommand): Promise<readonly PositionHold[]> {
@@ -65,9 +67,26 @@ export class HoldPositionsUseCase {
         for (const previouslyAcquired of acquired) {
           await this.holdRepository.release(previouslyAcquired.id);
         }
+        await this.outbox.publish({
+          aggregateType: "GameRoom",
+          aggregateId: command.roomId,
+          eventType: "position.hold_failed",
+          payload: { roomId: command.roomId, position, holderRef: command.holderRef },
+        });
         throw new ConflictError(`A posição ${position} já está reservada.`);
       }
       acquired.push(hold);
+      await this.outbox.publish({
+        aggregateType: "GameRoom",
+        aggregateId: command.roomId,
+        eventType: "position.hold_created",
+        payload: {
+          roomId: command.roomId,
+          position,
+          holderRef: command.holderRef,
+          userId: command.holderRef,
+        },
+      });
     }
 
     return acquired;

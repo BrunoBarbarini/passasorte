@@ -39,4 +39,52 @@ describe("loadConfig", () => {
   it("throws a descriptive ConfigValidationError when required vars are missing", () => {
     expect(() => loadConfig({})).toThrow(ConfigValidationError);
   });
+
+  it("Phase 8/TASK-045: analytics adapter stays unconfigured (no key) by default", () => {
+    const config = loadConfig(baseEnv);
+    expect(config.analytics.posthogApiKey).toBeUndefined();
+    expect(config.analytics.posthogHost).toBe("https://us.i.posthog.com");
+  });
+
+  it("Phase 8/TASK-061: defaults MFA-for-privileged-roles to on in production, off elsewhere", () => {
+    expect(
+      loadConfig({ ...baseEnv, NODE_ENV: "production" }).security.requireMfaForPrivilegedRoles,
+    ).toBe(true);
+    expect(loadConfig(baseEnv).security.requireMfaForPrivilegedRoles).toBe(false);
+  });
+
+  it("Phase 8/TASK-061: an explicit value always overrides the NODE_ENV-based default", () => {
+    expect(
+      loadConfig({
+        ...baseEnv,
+        NODE_ENV: "production",
+        REQUIRE_MFA_FOR_PRIVILEGED_ROLES: "false",
+      }).security.requireMfaForPrivilegedRoles,
+    ).toBe(false);
+    expect(
+      loadConfig({ ...baseEnv, REQUIRE_MFA_FOR_PRIVILEGED_ROLES: "true" }).security
+        .requireMfaForPrivilegedRoles,
+    ).toBe(true);
+  });
+
+  it("Phase 8/TASK-060: applies safe rate-limit defaults", () => {
+    const config = loadConfig(baseEnv);
+    expect(config.security.rateLimit.max).toBe(100);
+    expect(config.security.rateLimit.windowMs).toBe(60_000);
+  });
+
+  it("Phase 8/TASK-059: denies every CORS origin by default", () => {
+    expect(loadConfig(baseEnv).security.corsAllowedOrigins).toEqual([]);
+  });
+
+  it("Phase 8/TASK-059: parses a comma-separated CORS allow-list, trimming whitespace", () => {
+    const config = loadConfig({
+      ...baseEnv,
+      CORS_ALLOWED_ORIGINS: "https://app.passasorte.com, https://staging.passasorte.com ",
+    });
+    expect(config.security.corsAllowedOrigins).toEqual([
+      "https://app.passasorte.com",
+      "https://staging.passasorte.com",
+    ]);
+  });
 });
