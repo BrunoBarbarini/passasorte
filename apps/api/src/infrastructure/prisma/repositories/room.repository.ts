@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type {
   GameConfigSnapshot,
   GameRoom,
@@ -61,7 +61,7 @@ function toDomainRoom(row: PrismaGameRoom): GameRoom {
 
 @Injectable()
 export class PrismaRoomRepository implements RoomRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<GameRoom | null> {
     const row = await this.prisma.gameRoom.findUnique({ where: { id } });

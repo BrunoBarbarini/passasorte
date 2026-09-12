@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { BenefitAlreadyClosedError } from "@passasorte/domain";
 import type {
@@ -54,7 +54,7 @@ function toDomainRedemption(row: PrismaBenefitRedemption): BenefitRedemption {
 /** FR-055 Benefit Ledger: one account per user, created lazily on first grant/lookup. */
 @Injectable()
 export class PrismaBenefitAccountRepository implements BenefitAccountRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findOrCreateByUserId(userId: string): Promise<BenefitAccount> {
     const existing = await this.prisma.benefitAccount.findUnique({ where: { userId } });
@@ -85,7 +85,7 @@ export class PrismaBenefitAccountRepository implements BenefitAccountRepository 
  */
 @Injectable()
 export class PrismaBenefitLedgerRepository implements BenefitLedgerRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async appendGrantEntry(input: AppendGrantEntryInput): Promise<BenefitLedgerEntry> {
     const row = await this.prisma.benefitLedgerEntry.create({
@@ -155,7 +155,7 @@ export class PrismaBenefitLedgerRepository implements BenefitLedgerRepository {
 /** FR-057/FR-058: audit trail of completed redemptions, separate from the ledger's REDEMPTION entry. */
 @Injectable()
 export class PrismaBenefitRedemptionRepository implements BenefitRedemptionRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async create(input: CreateBenefitRedemptionInput): Promise<BenefitRedemption> {
     const row = await this.prisma.benefitRedemption.create({

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { Campaign, ExperienceSnapshot } from "@passasorte/domain";
 import type {
   CampaignListFilter,
@@ -34,7 +34,7 @@ function toDomainCampaign(row: PrismaCampaign): Campaign {
 
 @Injectable()
 export class PrismaCampaignRepository implements CampaignRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<Campaign | null> {
     const row = await this.prisma.campaign.findUnique({ where: { id } });
@@ -74,7 +74,8 @@ export class PrismaCampaignRepository implements CampaignRepository {
       updatedAt: input.at,
     };
     if (input.experienceSnapshot !== undefined) {
-      data.experienceSnapshot = (input.experienceSnapshot ?? Prisma.JsonNull) as unknown as Prisma.InputJsonValue;
+      data.experienceSnapshot = (input.experienceSnapshot ??
+        Prisma.JsonNull) as unknown as Prisma.InputJsonValue;
     }
     if (input.status === "PUBLISHED") data.publishedAt = input.at;
     if (input.status === "ENDED") data.endedAt = input.at;

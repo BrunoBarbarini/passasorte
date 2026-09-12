@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { Position, PositionHold } from "@passasorte/domain";
 import type { PositionHoldRepository, TryHoldInput } from "@passasorte/application";
@@ -30,7 +30,7 @@ function toDomainHold(row: PrismaPositionHold): PositionHold {
  */
 @Injectable()
 export class PrismaPositionHoldRepository implements PositionHoldRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async tryHold(input: TryHoldInput): Promise<PositionHold | null> {
     try {

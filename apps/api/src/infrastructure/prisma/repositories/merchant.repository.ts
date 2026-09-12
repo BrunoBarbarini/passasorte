@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { Merchant, MerchantLocation, MerchantStatus } from "@passasorte/domain";
 import type {
   CreateMerchantInput,
@@ -41,7 +41,7 @@ function toDomainLocation(row: PrismaMerchantLocation): MerchantLocation {
 
 @Injectable()
 export class PrismaMerchantRepository implements MerchantRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<Merchant | null> {
     const row = await this.prisma.merchant.findUnique({ where: { id } });

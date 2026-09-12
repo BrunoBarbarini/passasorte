@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { GameResult, RandomnessCommitment } from "@passasorte/domain";
 import type { CreateGameRunInput, GameRunRepository } from "@passasorte/application";
 import type { Prisma } from "@prisma/client";
@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma.service.js";
 
 @Injectable()
 export class PrismaGameRunRepository implements GameRunRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async create(input: CreateGameRunInput): Promise<void> {
     await this.prisma.gameRun.create({

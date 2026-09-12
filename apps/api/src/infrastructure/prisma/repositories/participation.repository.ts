@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import {
   FinalMovementPlanAlreadyLockedError,
   type FinalMovementPlan,
@@ -35,7 +35,7 @@ const NON_ACTIVE_STATUSES: ParticipationStatus[] = ["COMPLETED"];
 
 @Injectable()
 export class PrismaParticipationRepository implements ParticipationRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<Participation | null> {
     const row = await this.prisma.participation.findUnique({ where: { id } });

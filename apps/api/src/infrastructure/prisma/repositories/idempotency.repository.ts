@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import type { IdempotencyPort } from "@passasorte/application";
 import { PrismaService } from "../prisma.service.js";
@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma.service.js";
 /** FR-038/BR-037: `record` inserts `key`; a unique-constraint violation means it was already seen. */
 @Injectable()
 export class PrismaIdempotencyRepository implements IdempotencyPort {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async record(key: string): Promise<boolean> {
     try {

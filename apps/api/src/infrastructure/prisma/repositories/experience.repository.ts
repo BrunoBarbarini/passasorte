@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { Experience } from "@passasorte/domain";
 import type {
   CreateExperienceInput,
@@ -22,7 +22,7 @@ function toDomainExperience(row: PrismaExperience): Experience {
 
 @Injectable()
 export class PrismaExperienceRepository implements ExperienceRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findById(id: string): Promise<Experience | null> {
     const row = await this.prisma.experience.findUnique({ where: { id } });

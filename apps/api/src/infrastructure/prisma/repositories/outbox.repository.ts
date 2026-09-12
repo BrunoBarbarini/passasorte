@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type {
   OutboxEventRecord,
   OutboxPort,
@@ -20,7 +20,7 @@ interface RawOutboxRow {
 
 @Injectable()
 export class PrismaOutboxRepository implements OutboxPort, OutboxReaderPort {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async publish(input: PublishOutboxEventInput): Promise<void> {
     await this.prisma.outboxEvent.create({

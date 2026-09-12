@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { AuthenticatedUser, User } from "@passasorte/domain";
 import type { CreateUserInput, UserRepository } from "@passasorte/application";
 import { PrismaService } from "../prisma.service.js";
@@ -17,7 +17,7 @@ function toDomainUser(row: PrismaUser): User {
 
 @Injectable()
 export class PrismaUserRepository implements UserRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async findBySupabaseUserId(supabaseUserId: string): Promise<User | null> {
     const row = await this.prisma.user.findUnique({ where: { supabaseUserId } });
