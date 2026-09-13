@@ -1,5 +1,5 @@
 import React from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import { NavigationContainer, DefaultTheme, type Theme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./types.js";
 import { HomeScreen } from "../screens/HomeScreen.js";
@@ -11,14 +11,36 @@ import { LiveGameScreen } from "../screens/LiveGameScreen.js";
 import { FinalLockScreen } from "../screens/FinalLockScreen.js";
 import { ResultScreen } from "../screens/ResultScreen.js";
 import { BenefitsScreen } from "../screens/BenefitsScreen.js";
+import { colors } from "../theme/tokens.js";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+// Tema de navegação no vocabulário de cor do design system (p.11/p.18):
+// cabeçalho navy com texto branco, fundo de tela cream.
+const navigationTheme: Theme = {
+  ...DefaultTheme,
+  colors: {
+    ...DefaultTheme.colors,
+    primary: colors.violet,
+    background: colors.cream,
+    card: colors.navy,
+    text: colors.white,
+    border: colors.navy,
+  },
+};
 
 /** TASK-036 Mobile Application Shell: the navigation graph for the whole participant journey. */
 export function RootNavigator(): React.JSX.Element {
   return (
-    <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
+    <NavigationContainer theme={navigationTheme}>
+      <Stack.Navigator
+        initialRouteName="Home"
+        screenOptions={{
+          headerStyle: { backgroundColor: colors.navy },
+          headerTintColor: colors.white,
+          headerTitleStyle: { fontWeight: "700" },
+        }}
+      >
         <Stack.Screen name="Home" component={HomeScreen} options={{ title: "PassaSorte" }} />
         <Stack.Screen name="Auth" component={AuthScreen} options={{ title: "Entrar" }} />
         <Stack.Screen

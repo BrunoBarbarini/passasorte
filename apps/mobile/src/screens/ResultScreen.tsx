@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
 import type { Participation } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Pill, type PillTone } from "../components/Pill.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Result">;
 
@@ -14,6 +17,15 @@ const STATUS_MESSAGE: Record<string, string> = {
   WON: "🎉 Você ganhou!",
   NOT_WON: "Não foi dessa vez.",
   COMPLETED: "Participação encerrada.",
+};
+
+// Cor puramente visual para o status resolvido - não afeta a regra que
+// decide o resultado (isso é sempre feito pelo servidor, ver comentário
+// abaixo).
+const RESULT_TONE: Record<string, PillTone> = {
+  WON: "aqua",
+  NOT_WON: "neutral",
+  COMPLETED: "navy",
 };
 
 /**
@@ -40,13 +52,19 @@ export function ResultScreen({ route }: Props): React.JSX.Element {
   }, [participationId, session]);
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {participation ? (
         RESOLVED_STATUSES.has(participation.status) ? (
-          <Text style={styles.result}>
-            {STATUS_MESSAGE[participation.status] ?? participation.status}
-          </Text>
+          <>
+            <Text style={styles.result}>
+              {STATUS_MESSAGE[participation.status] ?? participation.status}
+            </Text>
+            <Pill
+              label={participation.status}
+              tone={RESULT_TONE[participation.status] ?? "neutral"}
+            />
+          </>
         ) : (
           <Text style={styles.note}>
             Resultado ainda não disponível (status atual: {participation.status}). A resolução
@@ -55,15 +73,15 @@ export function ResultScreen({ route }: Props): React.JSX.Element {
           </Text>
         )
       ) : (
-        <Text>Carregando...</Text>
+        <Text style={styles.note}>Carregando...</Text>
       )}
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16, justifyContent: "center" },
-  result: { fontSize: 22, fontWeight: "700", textAlign: "center" },
-  note: { color: "#6b7280", textAlign: "center" },
-  error: { color: "#b91c1c", marginBottom: 8 },
+  container: { justifyContent: "center", alignItems: "center" },
+  result: { ...typography.h2, color: colors.navy, textAlign: "center", marginBottom: spacing.lg },
+  note: { ...typography.body, color: colors.textMuted, textAlign: "center" },
+  error: { color: colors.danger, marginBottom: spacing.md },
 });

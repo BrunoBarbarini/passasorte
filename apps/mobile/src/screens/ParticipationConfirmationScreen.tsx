@@ -1,10 +1,14 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
 import type { Participation } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Button } from "../components/Button.js";
+import { Card } from "../components/Card.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "ParticipationConfirmation">;
 
@@ -44,22 +48,27 @@ export function ParticipationConfirmationScreen({ route, navigation }: Props): R
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer>
       <Text style={styles.title}>Revise sua participação</Text>
-      <Text style={styles.line}>Posições: {positions.join(", ")}</Text>
+      <Card accentColor={colors.coral}>
+        <Text style={styles.label}>Posições selecionadas</Text>
+        <Text style={styles.line}>{positions.join(", ")}</Text>
+      </Card>
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.button} disabled={submitting} onPress={() => void confirm()}>
-        <Text style={styles.buttonText}>{submitting ? "Confirmando..." : "Confirmar participação"}</Text>
-      </Pressable>
-    </View>
+      <Button
+        label={submitting ? "Confirmando..." : "Confirmar participação"}
+        loading={submitting}
+        onPress={() => void confirm()}
+        style={styles.button}
+      />
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 16 },
-  line: { fontSize: 15, marginBottom: 8 },
-  error: { color: "#b91c1c", marginVertical: 8 },
-  button: { backgroundColor: "#2563eb", borderRadius: 8, padding: 14, alignItems: "center", marginTop: 16 },
-  buttonText: { color: "#fff", fontWeight: "700" },
+  title: { ...typography.h2, color: colors.navy, marginBottom: spacing.lg },
+  label: { ...typography.small, color: colors.textMuted },
+  line: { ...typography.h3, color: colors.navy, marginTop: spacing.xs },
+  error: { color: colors.danger, marginTop: spacing.md },
+  button: { marginTop: spacing.xl },
 });

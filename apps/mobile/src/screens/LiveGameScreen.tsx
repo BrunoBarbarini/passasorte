@@ -5,6 +5,10 @@ import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest, generateIdempotencyKey } from "../lib/api-client.js";
 import type { Participation } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Button } from "../components/Button.js";
+import { Card } from "../components/Card.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "LiveGame">;
 
@@ -65,41 +69,44 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
 
   if (!participation) {
     return (
-      <View style={styles.container}>
-        {error ? <Text style={styles.error}>{error}</Text> : <Text>Carregando...</Text>}
-      </View>
+      <ScreenContainer style={styles.centered}>
+        {error ? <Text style={styles.error}>{error}</Text> : <Text style={styles.note}>Carregando...</Text>}
+      </ScreenContainer>
     );
   }
 
   const remaining = participation.movementAllowanceTotal - participation.movementAllowanceUsed;
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer>
       <Text style={styles.title}>Status: {participation.status}</Text>
-      <Text style={styles.line}>
-        Posições: {participation.positions.map((p) => p.position).join(", ")}
-      </Text>
-      <Text style={styles.line}>
-        Movimentos: {participation.movementAllowanceUsed}/{participation.movementAllowanceTotal} usados
-      </Text>
+      <Card>
+        <Text style={styles.line}>
+          Posições: {participation.positions.map((p) => p.position).join(", ")}
+        </Text>
+        <Text style={styles.line}>
+          Movimentos: {participation.movementAllowanceUsed}/{participation.movementAllowanceTotal} usados
+        </Text>
+      </Card>
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {participation.status === "ACTIVE" ? (
         <View style={styles.row}>
-          <Pressable
-            style={[styles.button, remaining <= 0 && styles.buttonDisabled]}
-            disabled={submitting || remaining <= 0}
+          <Button
+            label="← Esquerda"
+            variant="secondary"
+            disabled={remaining <= 0}
+            loading={submitting}
             onPress={() => void submitMovement("LEFT")}
-          >
-            <Text style={styles.buttonText}>← Esquerda</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.button, remaining <= 0 && styles.buttonDisabled]}
-            disabled={submitting || remaining <= 0}
+            style={styles.rowButton}
+          />
+          <Button
+            label="Direita →"
+            disabled={remaining <= 0}
+            loading={submitting}
             onPress={() => void submitMovement("RIGHT")}
-          >
-            <Text style={styles.buttonText}>Direita →</Text>
-          </Pressable>
+            style={styles.rowButton}
+          />
         </View>
       ) : (
         <Text style={styles.note}>
@@ -109,31 +116,29 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
       )}
 
       <Pressable
-        style={styles.secondaryButton}
+        style={styles.secondaryLink}
         onPress={() => navigation.navigate("FinalLock", { participationId })}
       >
-        <Text style={styles.secondaryButtonText}>Ver travamento final</Text>
+        <Text style={styles.secondaryLinkText}>Ver travamento final</Text>
       </Pressable>
       <Pressable
-        style={styles.secondaryButton}
+        style={styles.secondaryLink}
         onPress={() => navigation.navigate("Result", { participationId })}
       >
-        <Text style={styles.secondaryButtonText}>Ver resultado</Text>
+        <Text style={styles.secondaryLinkText}>Ver resultado</Text>
       </Pressable>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  title: { fontSize: 18, fontWeight: "700", marginBottom: 8 },
-  line: { fontSize: 15, marginBottom: 4 },
-  error: { color: "#b91c1c", marginVertical: 8 },
-  note: { color: "#6b7280", marginVertical: 16 },
-  row: { flexDirection: "row", gap: 12, marginTop: 16 },
-  button: { flex: 1, backgroundColor: "#2563eb", borderRadius: 8, padding: 14, alignItems: "center" },
-  buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  secondaryButton: { marginTop: 12, alignItems: "center" },
-  secondaryButtonText: { color: "#2563eb", fontWeight: "600" },
+  centered: { justifyContent: "center" },
+  title: { ...typography.h3, color: colors.navy, marginBottom: spacing.md },
+  line: { ...typography.body, color: colors.navy, marginBottom: spacing.xs },
+  error: { color: colors.danger, marginVertical: spacing.md },
+  note: { ...typography.body, color: colors.textMuted, marginVertical: spacing.xl },
+  row: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xl },
+  rowButton: { flex: 1 },
+  secondaryLink: { marginTop: spacing.md, alignItems: "center" },
+  secondaryLinkText: { ...typography.body, color: colors.violet, fontWeight: "700" },
 });

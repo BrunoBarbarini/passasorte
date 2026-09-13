@@ -9,7 +9,8 @@ export default function App(): React.JSX.Element {
     <SafeAreaProvider>
       <AuthProvider>
         <RootNavigator />
-        <StatusBar style="auto" />
+        {/* "dark": o fundo padrão do app agora é o cream do design system (p.2/p.18), que precisa de ícones escuros na status bar. */}
+        <StatusBar style="dark" />
       </AuthProvider>
     </SafeAreaProvider>
   );

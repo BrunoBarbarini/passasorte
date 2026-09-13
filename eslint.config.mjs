@@ -30,10 +30,13 @@ export default tseslint.config(
       "**/.turbo/**",
       "**/coverage/**",
       "infrastructure/**",
-      // apps/mobile's Metro/Babel config isn't part of any tsconfig
-      // "include" (Expo/Metro loads it directly, not tsc) - can't be
-      // typed-linted like the rest of the repo.
+      // apps/mobile's Metro/Babel config and custom entry point aren't
+      // part of any tsconfig "include" (its tsconfig.json only includes
+      // "src" and "App.tsx" - Expo/Metro loads these directly, not tsc)
+      // - can't be typed-linted like the rest of the repo.
       "**/babel.config.js",
+      "apps/mobile/metro.config.js",
+      "apps/mobile/index.js",
       // apps/web (Next.js): its build output and the two files Next.js
       // itself generates/loads outside any tsconfig "include".
       "**/.next/**",

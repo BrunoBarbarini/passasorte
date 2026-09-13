@@ -3,10 +3,36 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "rea
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
-import type { Campaign, CampaignListPage } from "../types/api.js";
+import type { Campaign, CampaignListPage, CampaignStatus } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Card } from "../components/Card.js";
+import { Pill, type PillTone } from "../components/Pill.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
+
+// Cores puramente visuais para cada status de campanha que a API já
+// retorna (types/api.ts) - nenhum status novo é criado aqui.
+const CAMPAIGN_STATUS_TONE: Record<CampaignStatus, PillTone> = {
+  DRAFT: "neutral",
+  IN_REVIEW: "amber",
+  APPROVED: "violet",
+  SCHEDULED: "territory",
+  PUBLISHED: "aqua",
+  ENDED: "navy",
+  CANCELLED: "danger",
+};
+
+const CAMPAIGN_STATUS_LABEL: Record<CampaignStatus, string> = {
+  DRAFT: "Rascunho",
+  IN_REVIEW: "Em revisão",
+  APPROVED: "Aprovada",
+  SCHEDULED: "Agendada",
+  PUBLISHED: "Publicada",
+  ENDED: "Encerrada",
+  CANCELLED: "Cancelada",
+};
 
 /** TASK-037 Mobile Home: FR-007 public campaign catalog, no auth required. */
 export function HomeScreen({ navigation }: Props): React.JSX.Element {
@@ -29,16 +55,21 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
   }, [load]);
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer noPadding>
       <View style={styles.header}>
-        <Text style={styles.title}>Campanhas em destaque</Text>
+        <View>
+          <Text style={styles.brand}>
+            Passa<Text style={styles.brandAccent}>Sorte</Text>
+          </Text>
+          <Text style={styles.title}>Campanhas em destaque</Text>
+        </View>
         {session ? (
           <View style={styles.headerLinks}>
             <Pressable onPress={() => navigation.navigate("Benefits")}>
               <Text style={styles.link}>Benefícios</Text>
             </Pressable>
             <Pressable onPress={() => void signOut()}>
-              <Text style={styles.link}>Sair</Text>
+              <Text style={styles.linkMuted}>Sair</Text>
             </Pressable>
           </View>
         ) : (
@@ -49,6 +80,8 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
         data={campaigns}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
@@ -59,34 +92,40 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
           ) : null
         }
         renderItem={({ item }) => (
-          <Pressable
-            style={styles.card}
-            onPress={() => navigation.navigate("CampaignDetail", { campaignId: item.id })}
-          >
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            <Text style={styles.cardSubtitle}>{item.status}</Text>
+          <Pressable onPress={() => navigation.navigate("CampaignDetail", { campaignId: item.id })}>
+            <Card accentColor={colors.coral}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              <View style={styles.cardFooter}>
+                <Pill label={CAMPAIGN_STATUS_LABEL[item.status]} tone={CAMPAIGN_STATUS_TONE[item.status]} />
+              </View>
+            </Card>
           </Pressable>
         )}
       />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
+    alignItems: "flex-start",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  headerLinks: { flexDirection: "row", gap: 16 },
-  title: { fontSize: 20, fontWeight: "700" },
-  link: { color: "#2563eb", fontWeight: "600" },
-  error: { color: "#b91c1c", marginBottom: 8 },
-  empty: { color: "#6b7280", textAlign: "center", marginTop: 32 },
-  separator: { height: 12 },
-  card: { padding: 16, borderRadius: 12, backgroundColor: "#f3f4f6" },
-  cardTitle: { fontSize: 16, fontWeight: "600" },
-  cardSubtitle: { color: "#6b7280", marginTop: 4 },
+  brand: { ...typography.h3, color: colors.navy },
+  brandAccent: { color: colors.coral },
+  title: { ...typography.small, color: colors.textMuted, marginTop: spacing.xs },
+  headerLinks: { flexDirection: "row", gap: spacing.lg, marginTop: spacing.xs },
+  link: { ...typography.body, color: colors.violet, fontWeight: "700" },
+  linkMuted: { ...typography.body, color: colors.textMuted, fontWeight: "600" },
+  error: { color: colors.danger, marginHorizontal: spacing.lg, marginBottom: spacing.sm },
+  list: { flex: 1 },
+  listContent: { padding: spacing.lg, paddingTop: spacing.sm, flexGrow: 1 },
+  empty: { ...typography.body, color: colors.textMuted, textAlign: "center", marginTop: spacing.xxl },
+  separator: { height: spacing.md },
+  cardTitle: { ...typography.h3, color: colors.navy },
+  cardFooter: { marginTop: spacing.md, flexDirection: "row" },
 });

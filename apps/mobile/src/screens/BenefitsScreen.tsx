@@ -1,10 +1,15 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest, generateIdempotencyKey } from "../lib/api-client.js";
-import type { Benefit, ListMyBenefitsResponse } from "../types/api.js";
+import type { Benefit, BenefitStatus, ListMyBenefitsResponse } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Button } from "../components/Button.js";
+import { Card } from "../components/Card.js";
+import { Pill, type PillTone } from "../components/Pill.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Benefits">;
 
@@ -14,6 +19,16 @@ const STATUS_LABEL: Record<Benefit["status"], string> = {
   REDEEMED: "Resgatado",
   EXPIRED: "Expirado",
   REVERSED: "Revertido",
+};
+
+// Cores puramente visuais para cada status de benefício que a API já
+// retorna (BenefitStatus em types/api.ts).
+const STATUS_TONE: Record<BenefitStatus, PillTone> = {
+  GRANTED: "violet",
+  AVAILABLE: "aqua",
+  REDEEMED: "navy",
+  EXPIRED: "neutral",
+  REVERSED: "danger",
 };
 
 /**
@@ -71,18 +86,22 @@ export function BenefitsScreen(_props: Props): React.JSX.Element {
 
   if (!session) {
     return (
-      <View style={styles.container}>
+      <ScreenContainer style={styles.centered}>
         <Text style={styles.note}>Entre para ver seus benefícios.</Text>
-      </View>
+      </ScreenContainer>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.balanceLabel}>Saldo</Text>
-      <Text style={styles.balance}>{data?.balanceMinorUnits ?? 0} unidades</Text>
+    <ScreenContainer noPadding>
+      <View style={styles.balanceCard}>
+        <Text style={styles.balanceLabel}>Saldo</Text>
+        <Text style={styles.balance}>{data?.balanceMinorUnits ?? 0} unidades</Text>
+      </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
         data={data?.benefits ?? []}
         keyExtractor={(item) => item.id}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
@@ -91,52 +110,51 @@ export function BenefitsScreen(_props: Props): React.JSX.Element {
           !loading ? <Text style={styles.empty}>Nenhum benefício por aqui ainda.</Text> : null
         }
         renderItem={({ item }) => (
-          <View style={styles.card}>
+          <Card>
             <Text style={styles.cardTitle}>{item.reason}</Text>
-            <Text style={styles.cardSubtitle}>
-              {item.amountMinorUnits} unidades · {STATUS_LABEL[item.status]}
-            </Text>
-            {item.expiresAt ? (
-              <Text style={styles.cardMeta}>
-                Expira em {new Date(item.expiresAt).toLocaleDateString("pt-BR")}
-              </Text>
-            ) : null}
-            {item.status === "AVAILABLE" ? (
-              <Pressable
-                style={styles.button}
-                disabled={redeemingId === item.id}
-                onPress={() => void redeem(item)}
-              >
-                <Text style={styles.buttonText}>
-                  {redeemingId === item.id ? "Resgatando..." : "Resgatar"}
+            <Text style={styles.cardSubtitle}>{item.amountMinorUnits} unidades</Text>
+            <View style={styles.cardFooter}>
+              <Pill label={STATUS_LABEL[item.status]} tone={STATUS_TONE[item.status]} />
+              {item.expiresAt ? (
+                <Text style={styles.cardMeta}>
+                  Expira em {new Date(item.expiresAt).toLocaleDateString("pt-BR")}
                 </Text>
-              </Pressable>
+              ) : null}
+            </View>
+            {item.status === "AVAILABLE" ? (
+              <Button
+                label={redeemingId === item.id ? "Resgatando..." : "Resgatar"}
+                loading={redeemingId === item.id}
+                onPress={() => void redeem(item)}
+                style={styles.redeemButton}
+              />
             ) : null}
-          </View>
+          </Card>
         )}
       />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  balanceLabel: { color: "#6b7280", fontSize: 13 },
-  balance: { fontSize: 28, fontWeight: "700", marginBottom: 16 },
-  error: { color: "#b91c1c", marginBottom: 8 },
-  note: { color: "#6b7280", textAlign: "center", marginTop: 32 },
-  empty: { color: "#6b7280", textAlign: "center", marginTop: 32 },
-  separator: { height: 12 },
-  card: { padding: 16, borderRadius: 12, backgroundColor: "#f3f4f6" },
-  cardTitle: { fontSize: 16, fontWeight: "600" },
-  cardSubtitle: { color: "#6b7280", marginTop: 4 },
-  cardMeta: { color: "#9ca3af", marginTop: 4, fontSize: 12 },
-  button: {
-    marginTop: 12,
-    backgroundColor: "#2563eb",
-    borderRadius: 8,
-    padding: 10,
+  centered: { justifyContent: "center", alignItems: "center" },
+  balanceCard: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md },
+  balanceLabel: { ...typography.small, color: colors.textMuted },
+  balance: { ...typography.h1, color: colors.navy, marginTop: spacing.xs },
+  error: { color: colors.danger, marginHorizontal: spacing.lg, marginBottom: spacing.sm },
+  note: { ...typography.body, color: colors.textMuted, textAlign: "center" },
+  list: { flex: 1 },
+  listContent: { padding: spacing.lg, paddingTop: spacing.sm, flexGrow: 1 },
+  empty: { ...typography.body, color: colors.textMuted, textAlign: "center", marginTop: spacing.xxl },
+  separator: { height: spacing.md },
+  cardTitle: { ...typography.h3, color: colors.navy },
+  cardSubtitle: { ...typography.small, color: colors.textMuted, marginTop: spacing.xs },
+  cardFooter: {
+    marginTop: spacing.md,
+    flexDirection: "row",
     alignItems: "center",
+    gap: spacing.md,
   },
-  buttonText: { color: "#fff", fontWeight: "700" },
+  cardMeta: { ...typography.small, color: colors.textMuted },
+  redeemButton: { marginTop: spacing.md },
 });

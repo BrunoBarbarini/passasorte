@@ -1,8 +1,11 @@
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { useAuth } from "../context/auth-context.js";
+import { Button } from "../components/Button.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, radius, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
 
@@ -36,11 +39,12 @@ export function AuthScreen({ navigation }: Props): React.JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer style={styles.container}>
       <Text style={styles.title}>{mode === "signIn" ? "Entrar" : "Criar conta"}</Text>
       <TextInput
         style={styles.input}
         placeholder="E-mail"
+        placeholderTextColor={colors.textMuted}
         autoCapitalize="none"
         keyboardType="email-address"
         value={email}
@@ -49,37 +53,45 @@ export function AuthScreen({ navigation }: Props): React.JSX.Element {
       <TextInput
         style={styles.input}
         placeholder="Senha"
+        placeholderTextColor={colors.textMuted}
         secureTextEntry
         value={password}
         onChangeText={setPassword}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Pressable style={styles.button} onPress={() => void submit()} disabled={submitting}>
-        <Text style={styles.buttonText}>
-          {submitting ? "Enviando..." : mode === "signIn" ? "Entrar" : "Criar conta"}
-        </Text>
-      </Pressable>
+      <Button
+        label={submitting ? "Enviando..." : mode === "signIn" ? "Entrar" : "Criar conta"}
+        loading={submitting}
+        onPress={() => void submit()}
+      />
       <Pressable onPress={() => setMode(mode === "signIn" ? "signUp" : "signIn")}>
         <Text style={styles.switchLink}>
           {mode === "signIn" ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
         </Text>
       </Pressable>
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16, justifyContent: "center" },
-  title: { fontSize: 22, fontWeight: "700", marginBottom: 24, textAlign: "center" },
+  container: { justifyContent: "center" },
+  title: { ...typography.h2, color: colors.navy, marginBottom: spacing.xl, textAlign: "center" },
   input: {
     borderWidth: 1,
-    borderColor: "#d1d5db",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
+    borderColor: "#E4D9CC",
+    borderRadius: radius.sm,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    backgroundColor: colors.white,
+    color: colors.navy,
+    fontSize: typography.body.fontSize,
   },
-  error: { color: "#b91c1c", marginBottom: 12 },
-  button: { backgroundColor: "#2563eb", borderRadius: 8, padding: 14, alignItems: "center" },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  switchLink: { color: "#2563eb", textAlign: "center", marginTop: 16 },
+  error: { color: colors.danger, marginBottom: spacing.md },
+  switchLink: {
+    ...typography.body,
+    color: colors.violet,
+    textAlign: "center",
+    marginTop: spacing.xl,
+    fontWeight: "600",
+  },
 });

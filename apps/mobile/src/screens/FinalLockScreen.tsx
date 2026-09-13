@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
 import type { GameRoom, Participation } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Card } from "../components/Card.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "FinalLock">;
 
@@ -38,19 +41,21 @@ export function FinalLockScreen({ route }: Props): React.JSX.Element {
   }, [participationId, session]);
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {participation && room ? (
         <>
           <Text style={styles.title}>Travamento final</Text>
-          <Text style={styles.line}>
-            A fase final começa no passo de sequência{" "}
-            {room.gameConfig.finalLock.finalPhaseStartSequence}.
-          </Text>
-          <Text style={styles.line}>
-            Você usou {participation.movementAllowanceUsed} de{" "}
-            {participation.movementAllowanceTotal} movimentos disponíveis.
-          </Text>
+          <Card accentColor={colors.coral}>
+            <Text style={styles.line}>
+              A fase final começa no passo de sequência{" "}
+              {room.gameConfig.finalLock.finalPhaseStartSequence}.
+            </Text>
+            <Text style={styles.line}>
+              Você usou {participation.movementAllowanceUsed} de{" "}
+              {participation.movementAllowanceTotal} movimentos disponíveis.
+            </Text>
+          </Card>
           <Text style={styles.note}>
             O travamento automático da estratégia final é uma funcionalidade da Fase 5
             (Operação Agendada do Jogo) e ainda não está implementada - por enquanto, o último
@@ -58,16 +63,15 @@ export function FinalLockScreen({ route }: Props): React.JSX.Element {
           </Text>
         </>
       ) : (
-        <Text>Carregando...</Text>
+        <Text style={styles.note}>Carregando...</Text>
       )}
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  title: { fontSize: 18, fontWeight: "700", marginBottom: 12 },
-  line: { fontSize: 15, marginBottom: 8 },
-  error: { color: "#b91c1c", marginBottom: 8 },
-  note: { color: "#6b7280", marginTop: 16 },
+  title: { ...typography.h3, color: colors.navy, marginBottom: spacing.lg },
+  line: { ...typography.body, color: colors.navy, marginBottom: spacing.sm },
+  error: { color: colors.danger, marginBottom: spacing.sm },
+  note: { ...typography.small, color: colors.textMuted, marginTop: spacing.xl },
 });

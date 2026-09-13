@@ -3,11 +3,15 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
-import type { Campaign, GameRoom } from "../types/api.js";
+import type { Campaign, GameRoom, RoomStatus } from "../types/api.js";
+import { Card } from "../components/Card.js";
+import { Pill, type PillTone } from "../components/Pill.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "CampaignDetail">;
 
-const ROOM_STATUS_LABEL: Record<GameRoom["status"], string> = {
+const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
   DRAFT: "Em preparação",
   OPEN: "Aberta para participação",
   ENTRY_LOCKED: "Entradas encerradas",
@@ -16,6 +20,20 @@ const ROOM_STATUS_LABEL: Record<GameRoom["status"], string> = {
   RESOLVING: "Apurando resultado",
   COMPLETED: "Encerrada",
   CANCELLED: "Cancelada",
+};
+
+// Cores puramente visuais para cada status de sala (RoomStatus já
+// existe em types/api.ts) - só dá cor de marca, não muda a regra que
+// decide se a sala aceita participação (isso é feito pelo backend).
+const ROOM_STATUS_TONE: Record<RoomStatus, PillTone> = {
+  DRAFT: "neutral",
+  OPEN: "aqua",
+  ENTRY_LOCKED: "amber",
+  RUNNING: "violet",
+  FINAL_LOCK: "coral",
+  RESOLVING: "territory",
+  COMPLETED: "navy",
+  CANCELLED: "danger",
 };
 
 /** TASK-038 Campaign Detail: FR-007 campaign + its rooms (FR-018 Multiple Rooms). */
@@ -38,7 +56,7 @@ export function CampaignDetailScreen({ route, navigation }: Props): React.JSX.El
   }, [campaignId]);
 
   return (
-    <View style={styles.container}>
+    <ScreenContainer>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {campaign ? (
         <>
@@ -54,31 +72,31 @@ export function CampaignDetailScreen({ route, navigation }: Props): React.JSX.El
         ListEmptyComponent={<Text style={styles.empty}>Nenhuma sala publicada ainda.</Text>}
         renderItem={({ item }) => (
           <Pressable
-            style={[styles.card, item.status !== "OPEN" && styles.cardDisabled]}
             disabled={item.status !== "OPEN"}
             onPress={() => navigation.navigate("PositionSelection", { roomId: item.id })}
           >
-            <Text style={styles.cardTitle}>Sala {item.id.slice(0, 8)}</Text>
-            <Text style={styles.cardSubtitle}>
-              {ROOM_STATUS_LABEL[item.status]} · capacidade {item.capacity}
-            </Text>
+            <Card disabled={item.status !== "OPEN"} accentColor={colors.violet}>
+              <Text style={styles.cardTitle}>Sala {item.id.slice(0, 8)}</Text>
+              <Text style={styles.cardSubtitle}>capacidade {item.capacity}</Text>
+              <View style={styles.cardFooter}>
+                <Pill label={ROOM_STATUS_LABEL[item.status]} tone={ROOM_STATUS_TONE[item.status]} />
+              </View>
+            </Card>
           </Pressable>
         )}
       />
-    </View>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff", padding: 16 },
-  title: { fontSize: 20, fontWeight: "700" },
-  subtitle: { color: "#6b7280", marginTop: 4, marginBottom: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 8 },
-  error: { color: "#b91c1c", marginBottom: 8 },
-  empty: { color: "#6b7280" },
-  separator: { height: 12 },
-  card: { padding: 16, borderRadius: 12, backgroundColor: "#f3f4f6" },
-  cardDisabled: { opacity: 0.5 },
-  cardTitle: { fontSize: 16, fontWeight: "600" },
-  cardSubtitle: { color: "#6b7280", marginTop: 4 },
+  title: { ...typography.h2, color: colors.navy },
+  subtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs, marginBottom: spacing.xl },
+  sectionTitle: { ...typography.h3, color: colors.navy, marginBottom: spacing.md },
+  error: { color: colors.danger, marginBottom: spacing.sm },
+  empty: { ...typography.body, color: colors.textMuted },
+  separator: { height: spacing.md },
+  cardTitle: { ...typography.h3, color: colors.navy },
+  cardSubtitle: { ...typography.small, color: colors.textMuted, marginTop: spacing.xs },
+  cardFooter: { marginTop: spacing.md, flexDirection: "row" },
 });

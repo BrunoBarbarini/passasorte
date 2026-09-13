@@ -5,13 +5,25 @@ import type { RootStackParamList } from "../navigation/types.js";
 import { apiRequest } from "../lib/api-client.js";
 import type { GameRoom, ParticipationPackage, PositionState } from "../types/api.js";
 import { useAuth } from "../context/auth-context.js";
+import { Button } from "../components/Button.js";
+import { ScreenContainer } from "../components/ScreenContainer.js";
+import { colors, radius, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "PositionSelection">;
 
+// Cores puramente visuais para os 3 status de posição já existentes
+// (PositionStatus em types/api.ts): disponível = neutro, reservada
+// (HELD) = âmbar (atenção/em espera), ocupada (TAKEN) = coral.
 const POSITION_COLORS: Record<PositionState["status"], string> = {
-  AVAILABLE: "#e5e7eb",
-  HELD: "#fde68a",
-  TAKEN: "#fca5a5",
+  AVAILABLE: colors.white,
+  HELD: colors.amber,
+  TAKEN: colors.coral,
+};
+
+const POSITION_TEXT_COLORS: Record<PositionState["status"], string> = {
+  AVAILABLE: colors.navy,
+  HELD: colors.navy,
+  TAKEN: colors.white,
 };
 
 /**
@@ -90,94 +102,114 @@ export function PositionSelectionScreen({ route, navigation }: Props): React.JSX
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {error ? <Text style={styles.error}>{error}</Text> : null}
-      {!session ? (
-        <Pressable style={styles.banner} onPress={() => navigation.navigate("Auth")}>
-          <Text style={styles.bannerText}>Entre na sua conta para reservar posições.</Text>
-        </Pressable>
-      ) : null}
-
-      {room ? (
-        <>
-          <Text style={styles.sectionTitle}>Pacote de participação</Text>
-          <View style={styles.packageRow}>
-            {room.participationPackages.map((pkg) => (
-              <Pressable
-                key={pkg.id}
-                style={[
-                  styles.packageChip,
-                  selectedPackage?.id === pkg.id && styles.packageChipSelected,
-                ]}
-                onPress={() => {
-                  setSelectedPackage(pkg);
-                  setSelected([]);
-                }}
-              >
-                <Text style={styles.packageChipText}>
-                  {pkg.positionCount} posição(ões) · {pkg.movementAllowance} movimento(s)
-                  {pkg.priceMinorUnits !== undefined ? ` · R$ ${(pkg.priceMinorUnits / 100).toFixed(2)}` : " · grátis"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text style={styles.sectionTitle}>
-            Posições ({selected.length}/{requiredCount} selecionadas)
-          </Text>
-          <View style={styles.grid}>
-            {positions.map((p) => (
-              <Pressable
-                key={p.position}
-                onPress={() => togglePosition(p.position, p.status)}
-                style={[
-                  styles.cell,
-                  { backgroundColor: POSITION_COLORS[p.status] },
-                  selected.includes(p.position) && styles.cellSelected,
-                ]}
-              >
-                <Text style={styles.cellText}>{p.position}</Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Pressable
-            style={[styles.button, !canSubmit && styles.buttonDisabled]}
-            disabled={!canSubmit || submitting}
-            onPress={() => void holdAndContinue()}
-          >
-            <Text style={styles.buttonText}>
-              {submitting ? "Reservando..." : "Reservar posições"}
-            </Text>
+    <ScreenContainer noPadding>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        {!session ? (
+          <Pressable style={styles.banner} onPress={() => navigation.navigate("Auth")}>
+            <Text style={styles.bannerText}>Entre na sua conta para reservar posições.</Text>
           </Pressable>
-        </>
-      ) : null}
-    </ScrollView>
+        ) : null}
+
+        {room ? (
+          <>
+            <Text style={styles.sectionTitle}>Pacote de participação</Text>
+            <View style={styles.packageRow}>
+              {room.participationPackages.map((pkg) => (
+                <Pressable
+                  key={pkg.id}
+                  style={[
+                    styles.packageChip,
+                    selectedPackage?.id === pkg.id && styles.packageChipSelected,
+                  ]}
+                  onPress={() => {
+                    setSelectedPackage(pkg);
+                    setSelected([]);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.packageChipText,
+                      selectedPackage?.id === pkg.id && styles.packageChipTextSelected,
+                    ]}
+                  >
+                    {pkg.positionCount} posição(ões) · {pkg.movementAllowance} movimento(s)
+                    {pkg.priceMinorUnits !== undefined
+                      ? ` · R$ ${(pkg.priceMinorUnits / 100).toFixed(2)}`
+                      : " · grátis"}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.sectionTitle}>
+              Posições ({selected.length}/{requiredCount} selecionadas)
+            </Text>
+            <View style={styles.grid}>
+              {positions.map((p) => (
+                <Pressable
+                  key={p.position}
+                  onPress={() => togglePosition(p.position, p.status)}
+                  style={[
+                    styles.cell,
+                    { backgroundColor: POSITION_COLORS[p.status] },
+                    selected.includes(p.position) && styles.cellSelected,
+                  ]}
+                >
+                  <Text style={[styles.cellText, { color: POSITION_TEXT_COLORS[p.status] }]}>
+                    {p.position}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Button
+              label={submitting ? "Reservando..." : "Reservar posições"}
+              loading={submitting}
+              disabled={!canSubmit}
+              onPress={() => void holdAndContinue()}
+              style={styles.submitButton}
+            />
+          </>
+        ) : null}
+      </ScrollView>
+    </ScreenContainer>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  content: { padding: 16 },
-  sectionTitle: { fontSize: 16, fontWeight: "600", marginTop: 16, marginBottom: 8 },
-  error: { color: "#b91c1c", marginBottom: 8 },
-  banner: { backgroundColor: "#fef3c7", padding: 12, borderRadius: 8, marginBottom: 12 },
-  bannerText: { color: "#92400e" },
-  packageRow: { gap: 8 },
-  packageChip: { padding: 12, borderRadius: 8, backgroundColor: "#f3f4f6", marginBottom: 8 },
-  packageChipSelected: { backgroundColor: "#dbeafe" },
-  packageChipText: { fontWeight: "500" },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  container: { flex: 1 },
+  content: { padding: spacing.lg },
+  sectionTitle: { ...typography.h3, color: colors.navy, marginTop: spacing.xl, marginBottom: spacing.md },
+  error: { color: colors.danger, marginBottom: spacing.sm },
+  banner: {
+    backgroundColor: "#FCE7D6",
+    padding: spacing.md,
+    borderRadius: radius.sm,
+    marginBottom: spacing.md,
+  },
+  bannerText: { ...typography.body, color: colors.navy },
+  packageRow: { gap: spacing.sm },
+  packageChip: {
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.white,
+    marginBottom: spacing.sm,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  packageChipSelected: { borderColor: colors.violet },
+  packageChipText: { ...typography.body, fontWeight: "600", color: colors.navy },
+  packageChipTextSelected: { color: colors.violet },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   cell: {
     width: 44,
     height: 44,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     alignItems: "center",
     justifyContent: "center",
   },
-  cellSelected: { borderWidth: 3, borderColor: "#2563eb" },
-  cellText: { fontWeight: "600" },
-  button: { backgroundColor: "#2563eb", borderRadius: 8, padding: 14, alignItems: "center", marginTop: 24 },
-  buttonDisabled: { opacity: 0.4 },
-  buttonText: { color: "#fff", fontWeight: "700" },
+  cellSelected: { borderWidth: 3, borderColor: colors.violet },
+  cellText: { fontWeight: "700" },
+  submitButton: { marginTop: spacing.xl },
 });
