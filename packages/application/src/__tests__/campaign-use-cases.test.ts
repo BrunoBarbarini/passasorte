@@ -5,6 +5,7 @@ import type {
   Campaign,
   Experience,
   Merchant,
+  PilotPolicy,
 } from "@passasorte/domain";
 import type {
   CampaignListFilter,
@@ -29,7 +30,7 @@ import type { AuditLogPort, RecordAuditLogInput } from "../ports/audit-log.port.
 import type { OutboxPort, PublishOutboxEventInput } from "../ports/outbox.port.js";
 import { CreateCampaignUseCase } from "../use-cases/campaign/create-campaign.use-case.js";
 import { TransitionCampaignUseCase } from "../use-cases/campaign/transition-campaign.use-case.js";
-import { DomainError, ValidationError } from "../errors.js";
+import { ConflictError, DomainError, ValidationError } from "../errors.js";
 import { InvalidCampaignTransitionError } from "@passasorte/domain";
 
 class InMemoryMerchantRepository implements MerchantRepository {
@@ -285,6 +286,18 @@ describe("TransitionCampaignUseCase", () => {
     });
   }
 
+  async function advanceToScheduled(h: ReturnType<typeof setupHarness>, campaignId: string) {
+    const useCase = new TransitionCampaignUseCase(
+      h.campaignRepository,
+      h.experienceRepository,
+      h.auditLog,
+      h.outbox,
+    );
+    await useCase.execute({ campaignId, targetStatus: "IN_REVIEW", actorUserId: "a" });
+    await useCase.execute({ campaignId, targetStatus: "APPROVED", actorUserId: "a" });
+    await useCase.execute({ campaignId, targetStatus: "SCHEDULED", actorUserId: "a" });
+  }
+
   it("rejects an illegal transition (DRAFT straight to PUBLISHED)", async () => {
     const h = setupHarness();
     const campaign = await createDraftCampaign(h);
@@ -368,5 +381,76 @@ describe("TransitionCampaignUseCase", () => {
     await h.experienceRepository.update(campaign.experienceId, { title: "Novo título" });
 
     expect(published.experienceSnapshot?.title).toBe("Jantar");
+  });
+
+  describe("Phase 9 pilot policy gate", () => {
+    it("blocks publishing a campaign from a merchant not on the pilot allow-list", async () => {
+      const h = setupHarness();
+      const campaign = await createDraftCampaign(h);
+      await advanceToScheduled(h, campaign.id);
+
+      const pilotPolicy: PilotPolicy = {
+        enabled: true,
+        allowedMerchantIds: ["some-other-merchant-id"],
+        maxActiveRooms: null,
+      };
+      const useCase = new TransitionCampaignUseCase(
+        h.campaignRepository,
+        h.experienceRepository,
+        h.auditLog,
+        h.outbox,
+        pilotPolicy,
+      );
+
+      await expect(
+        useCase.execute({ campaignId: campaign.id, targetStatus: "PUBLISHED", actorUserId: "a" }),
+      ).rejects.toBeInstanceOf(ConflictError);
+    });
+
+    it("allows publishing when the merchant is on the pilot allow-list", async () => {
+      const h = setupHarness();
+      const campaign = await createDraftCampaign(h);
+      await advanceToScheduled(h, campaign.id);
+
+      const pilotPolicy: PilotPolicy = {
+        enabled: true,
+        allowedMerchantIds: [campaign.merchantId],
+        maxActiveRooms: null,
+      };
+      const useCase = new TransitionCampaignUseCase(
+        h.campaignRepository,
+        h.experienceRepository,
+        h.auditLog,
+        h.outbox,
+        pilotPolicy,
+      );
+
+      const published = await useCase.execute({
+        campaignId: campaign.id,
+        targetStatus: "PUBLISHED",
+        actorUserId: "a",
+      });
+      expect(published.status).toBe("PUBLISHED");
+    });
+
+    it("never restricts publishing when the pilot policy is left at its default (disabled)", async () => {
+      const h = setupHarness();
+      const campaign = await createDraftCampaign(h);
+      await advanceToScheduled(h, campaign.id);
+
+      const useCase = new TransitionCampaignUseCase(
+        h.campaignRepository,
+        h.experienceRepository,
+        h.auditLog,
+        h.outbox,
+      );
+
+      const published = await useCase.execute({
+        campaignId: campaign.id,
+        targetStatus: "PUBLISHED",
+        actorUserId: "a",
+      });
+      expect(published.status).toBe("PUBLISHED");
+    });
   });
 });

@@ -46,6 +46,16 @@ export interface AppConfig {
     };
     corsAllowedOrigins: string[];
   };
+  /**
+   * Phase 9 (Pilot Launch) operational gate — see
+   * @passasorte/domain's pilot-policy.ts for how this is enforced.
+   * `enabled: false` (the default) makes this a complete no-op.
+   */
+  pilot: {
+    enabled: boolean;
+    allowedMerchantIds: string[];
+    maxActiveRooms: number | null;
+  };
   featureFlags: FeatureFlags;
 }
 
@@ -113,6 +123,14 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
         .split(",")
         .map((origin) => origin.trim())
         .filter((origin) => origin.length > 0),
+    },
+    pilot: {
+      enabled: env.PILOT_MODE_ENABLED,
+      allowedMerchantIds: (env.PILOT_ALLOWED_MERCHANT_IDS ?? "")
+        .split(",")
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+      maxActiveRooms: env.PILOT_MAX_ACTIVE_ROOMS ?? null,
     },
     featureFlags: {
       ENABLE_NEW_PARTICIPATIONS: env.ENABLE_NEW_PARTICIPATIONS,

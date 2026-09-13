@@ -123,6 +123,24 @@ export const EnvSchema = z.object({
   /// origin in.
   CORS_ALLOWED_ORIGINS: z.string().optional(),
 
+  /// Phase 9 (Pilot Launch). CLAUDE.md describes this phase only in
+  /// prose ("controlled merchants, limited rooms") with no numbered
+  /// backlog task - this is the technical gate for it, modeled as
+  /// operational config (like CORS_ALLOWED_ORIGINS above), never a
+  /// business rule. `false` by default so a deployment that never sets
+  /// these vars is completely unaffected (see @passasorte/domain's
+  /// pilot-policy.ts for the full rationale).
+  PILOT_MODE_ENABLED: booleanEnvFlag(false),
+  /// Comma-separated merchant UUIDs allowed to operate while the pilot
+  /// is enabled. Left unset (or empty) with PILOT_MODE_ENABLED=true means
+  /// no merchant is allowed yet - the safe failure mode, never "allow
+  /// all" (CLAUDE.md #58 forbids inventing an implicit allow-all).
+  PILOT_ALLOWED_MERCHANT_IDS: z.string().optional(),
+  /// Maximum number of simultaneously active rooms platform-wide while
+  /// the pilot is enabled. Left unset means no cap - CLAUDE.md #58
+  /// forbids inventing a numeric limit nobody configured.
+  PILOT_MAX_ACTIVE_ROOMS: z.coerce.number().int().positive().optional(),
+
   ...FeatureFlagsSchema.shape,
 });
 export type Env = z.infer<typeof EnvSchema>;

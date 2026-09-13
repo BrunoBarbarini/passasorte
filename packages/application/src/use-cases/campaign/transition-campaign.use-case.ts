@@ -1,14 +1,17 @@
 import {
   assertCampaignTransition,
+  isMerchantAllowedInPilot,
+  PILOT_DISABLED_POLICY,
   snapshotExperience,
   type Campaign,
   type CampaignStatus,
+  type PilotPolicy,
 } from "@passasorte/domain";
 import type { AuditLogPort } from "../../ports/audit-log.port.js";
 import type { CampaignRepository } from "../../ports/campaign-repository.port.js";
 import type { ExperienceRepository } from "../../ports/experience-repository.port.js";
 import type { OutboxPort } from "../../ports/outbox.port.js";
-import { NotFoundError, ValidationError } from "../../errors.js";
+import { ConflictError, NotFoundError, ValidationError } from "../../errors.js";
 
 export interface TransitionCampaignCommand {
   campaignId: string;
@@ -38,6 +41,14 @@ const AUDIT_ACTION_BY_STATUS: Record<CampaignStatus, string> = {
  * for approval beyond "it is currently IN_REVIEW" is CLAUDE.md #56
  * (Product - HIGH, final-lock/approval criteria) territory and is not
  * invented here.
+ *
+ * `pilotPolicy` is optional and defaults to a no-op (Phase 9: see
+ * @passasorte/domain's pilot-policy) so every existing call site keeps
+ * compiling and behaving identically. When Phase 9's pilot mode is
+ * enabled, publishing (the transition to PUBLISHED specifically — not
+ * DRAFT/IN_REVIEW/APPROVED/SCHEDULED editing, which stays unrestricted)
+ * additionally requires the campaign's merchant to be on the pilot
+ * allow-list.
  */
 export class TransitionCampaignUseCase {
   constructor(
@@ -45,6 +56,7 @@ export class TransitionCampaignUseCase {
     private readonly experienceRepository: ExperienceRepository,
     private readonly auditLog: AuditLogPort,
     private readonly outbox: OutboxPort,
+    private readonly pilotPolicy: PilotPolicy = PILOT_DISABLED_POLICY,
   ) {}
 
   async execute(command: TransitionCampaignCommand): Promise<Campaign> {
@@ -59,6 +71,16 @@ export class TransitionCampaignUseCase {
       throw new ValidationError("É necessário informar o motivo do cancelamento.", {
         field: "cancellationReason",
       });
+    }
+
+    if (
+      command.targetStatus === "PUBLISHED" &&
+      this.pilotPolicy.enabled &&
+      !isMerchantAllowedInPilot(this.pilotPolicy, existing.merchantId)
+    ) {
+      throw new ConflictError(
+        `Merchant "${existing.merchantId}" não está habilitado para o piloto (Fase 9) — a campanha não pode ser publicada.`,
+      );
     }
 
     const now = command.now ?? new Date();

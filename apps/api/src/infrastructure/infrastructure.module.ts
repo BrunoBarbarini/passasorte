@@ -42,6 +42,7 @@ import {
   OUTBOX_PORT,
   OUTBOX_READER_PORT,
   PARTICIPATION_REPOSITORY,
+  PILOT_POLICY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
   SECURITY_CONFIG,
@@ -66,6 +67,17 @@ const featureFlagsProvider: Provider = {
 const securityConfigProvider: Provider = {
   provide: SECURITY_CONFIG,
   useFactory: (): AppConfig["security"] => loadConfig().security,
+};
+
+/**
+ * Phase 9 (Pilot Launch) gate - see @passasorte/domain's pilot-policy.ts
+ * and packages/config's AppConfig["pilot"] for the full rationale.
+ * `enabled: false` (the default when no PILOT_* env vars are set) makes
+ * every check that consumes this a complete no-op.
+ */
+const pilotPolicyProvider: Provider = {
+  provide: PILOT_POLICY,
+  useFactory: (): AppConfig["pilot"] => loadConfig().pilot,
 };
 
 const analyticsPortProvider: Provider = {
@@ -108,6 +120,7 @@ const analyticsPortProvider: Provider = {
     { provide: BENEFIT_REDEMPTION_REPOSITORY, useClass: PrismaBenefitRedemptionRepository },
     featureFlagsProvider,
     securityConfigProvider,
+    pilotPolicyProvider,
     analyticsPortProvider,
   ],
   exports: [
@@ -132,6 +145,7 @@ const analyticsPortProvider: Provider = {
     BENEFIT_REDEMPTION_REPOSITORY,
     FEATURE_FLAGS,
     SECURITY_CONFIG,
+    PILOT_POLICY,
     ANALYTICS_PORT,
   ],
 })

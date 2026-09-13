@@ -87,4 +87,23 @@ describe("loadConfig", () => {
       "https://staging.passasorte.com",
     ]);
   });
+
+  it("Phase 9: pilot mode is disabled by default with no allow-list and no room cap", () => {
+    const config = loadConfig(baseEnv);
+    expect(config.pilot.enabled).toBe(false);
+    expect(config.pilot.allowedMerchantIds).toEqual([]);
+    expect(config.pilot.maxActiveRooms).toBeNull();
+  });
+
+  it("Phase 9: parses a comma-separated pilot merchant allow-list and a numeric room cap", () => {
+    const config = loadConfig({
+      ...baseEnv,
+      PILOT_MODE_ENABLED: "true",
+      PILOT_ALLOWED_MERCHANT_IDS: " merchant-a, merchant-b ",
+      PILOT_MAX_ACTIVE_ROOMS: "5",
+    });
+    expect(config.pilot.enabled).toBe(true);
+    expect(config.pilot.allowedMerchantIds).toEqual(["merchant-a", "merchant-b"]);
+    expect(config.pilot.maxActiveRooms).toBe(5);
+  });
 });

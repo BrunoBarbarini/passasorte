@@ -5,21 +5,24 @@ import {
   LockRoomEntriesUseCase,
   StartRoomUseCase,
   HoldPositionsUseCase,
+  type CampaignRepository,
   type GameRunRepository,
   type OutboxPort,
   type ParticipationRepository,
   type PositionHoldRepository,
   type RoomRepository,
 } from "@passasorte/application";
-import type { AuthenticatedUser, GameRoom, PositionHold } from "@passasorte/domain";
+import type { AuthenticatedUser, GameRoom, PilotPolicy, PositionHold } from "@passasorte/domain";
 import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
+  CAMPAIGN_REPOSITORY,
   GAME_RUN_REPOSITORY,
   OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
+  PILOT_POLICY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
 } from "../../common/tokens.js";
@@ -44,6 +47,8 @@ export class RoomsController {
     private readonly participationRepository: ParticipationRepository,
     @Inject(GAME_RUN_REPOSITORY) private readonly gameRunRepository: GameRunRepository,
     @Inject(OUTBOX_PORT) private readonly outbox: OutboxPort,
+    @Inject(CAMPAIGN_REPOSITORY) private readonly campaignRepository: CampaignRepository,
+    @Inject(PILOT_POLICY) private readonly pilotPolicy: PilotPolicy,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -51,7 +56,11 @@ export class RoomsController {
   @Roles("OPERATOR", "ADMIN", "MERCHANT_OPERATOR")
   create(@Param("campaignId") campaignId: string, @Body() body: unknown): Promise<GameRoom> {
     const input = parseWithSchema(CreateRoomSchema, body);
-    return new CreateRoomUseCase(this.roomRepository).execute({
+    return new CreateRoomUseCase(
+      this.roomRepository,
+      this.campaignRepository,
+      this.pilotPolicy,
+    ).execute({
       campaignId,
       capacity: input.capacity,
       gameConfig: input.gameConfig,

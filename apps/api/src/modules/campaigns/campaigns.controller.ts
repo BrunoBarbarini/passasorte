@@ -14,7 +14,7 @@ import {
   type MerchantRepository,
   type OutboxPort,
 } from "@passasorte/application";
-import type { AuthenticatedUser, Campaign } from "@passasorte/domain";
+import type { AuthenticatedUser, Campaign, PilotPolicy } from "@passasorte/domain";
 import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
@@ -25,6 +25,7 @@ import {
   EXPERIENCE_REPOSITORY,
   MERCHANT_REPOSITORY,
   OUTBOX_PORT,
+  PILOT_POLICY,
 } from "../../common/tokens.js";
 import { parseWithSchema } from "../../common/validation/parse-with-schema.js";
 
@@ -46,6 +47,7 @@ export class CampaignsController {
     @Inject(EXPERIENCE_REPOSITORY) experienceRepository: ExperienceRepository,
     @Inject(AUDIT_LOG_PORT) auditLog: AuditLogPort,
     @Inject(OUTBOX_PORT) outbox: OutboxPort,
+    @Inject(PILOT_POLICY) pilotPolicy: PilotPolicy,
   ) {
     this.createCampaign = new CreateCampaignUseCase(
       campaignRepository,
@@ -59,6 +61,7 @@ export class CampaignsController {
       experienceRepository,
       auditLog,
       outbox,
+      pilotPolicy,
     );
   }
 

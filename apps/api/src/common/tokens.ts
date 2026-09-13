@@ -24,3 +24,4 @@ export const BENEFIT_REDEMPTION_REPOSITORY = Symbol("BenefitRedemptionRepository
 export const FEATURE_FLAGS = Symbol("FeatureFlags");
 export const SECURITY_CONFIG = Symbol("SecurityConfig");
 export const ANALYTICS_PORT = Symbol("AnalyticsPort");
+export const PILOT_POLICY = Symbol("PilotPolicy");

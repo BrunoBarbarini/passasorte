@@ -67,3 +67,4 @@ export * from "./benefit/benefit-account.entity.js";
 export * from "./benefit/benefit-ledger-entry.entity.js";
 export * from "./benefit/benefit.entity.js";
 export * from "./benefit/benefit-redemption.entity.js";
+export * from "./pilot/pilot-policy.js";
