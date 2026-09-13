@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "PassaSorte participant mobile app (Expo + React Native) - CLAUDE.md #53 Phase 4.",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
