@@ -34,4 +34,34 @@ config.resolver.unstable_enableSymlinks = true;
 // Keep hierarchical lookup on; only symlink-following was the missing piece.
 config.resolver.disableHierarchicalLookup = false;
 
+// The rest of this monorepo (apps/api, apps/web, packages/*) writes relative
+// imports with an explicit ".js" extension even though the source files are
+// ".ts"/".tsx" - the TypeScript "moduleResolution": "bundler" convention this
+// repo standardized on (tsconfig.json here matches). tsc, tsx and Node's own
+// ESM loader all understand that convention, but Metro's default resolver
+// does not: it looks for a file that literally ends in ".js" and fails with
+// "Unable to resolve module ./src/whatever.js ... None of these files
+// exist" even though whatever.tsx sits right there. This custom
+// resolveRequest re-tries the same relative import without the extension
+// when a ".js"/".jsx" specifier fails, letting Metro's own sourceExts list
+// (.tsx/.ts/.jsx/.js/...) find the real file - falling back to the default
+// resolver's original error for anything that still can't be found (e.g. a
+// genuine missing module), so this never masks a real problem.
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const isRelative = moduleName.startsWith("./") || moduleName.startsWith("../");
+  if (isRelative && (moduleName.endsWith(".js") || moduleName.endsWith(".jsx"))) {
+    try {
+      return context.resolveRequest(
+        context,
+        moduleName.replace(/\.jsx?$/, ""),
+        platform,
+      );
+    } catch {
+      // Fall through to the default resolver so the original, more useful
+      // error (naming the extensions it tried) is what actually surfaces.
+    }
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
+
 module.exports = config;
