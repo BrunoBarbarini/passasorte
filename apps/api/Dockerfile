@@ -36,6 +36,13 @@
 FROM node:22-slim AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+# node:22-slim (Debian) nao vem com openssl instalado - sem isso, o
+# Prisma nem consegue detectar a versao de libssl no `prisma generate`
+# (caiu no fallback "openssl-1.1.x", que essa imagem nao tem) e o Query
+# Engine falha no boot em runtime com "libssl.so.1.1: cannot open shared
+# object file". Precisa estar aqui em "base", nao so no estagio de
+# build, porque o runtime tambem carrega o Query Engine nativo.
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 
 # ---- deps: instala dependencias usando so os manifests (cache de layer) --
