@@ -9,6 +9,12 @@
 #
 # Depois do build, o deploy no Cloud Run e um comando separado (ver
 # infrastructure/cloudbuild/deploy-api.sh).
+#
+# Tag usa $BUILD_ID (sempre disponivel) em vez de $SHORT_SHA: $SHORT_SHA so
+# e preenchido em builds disparados por um trigger conectado ao git - um
+# `gcloud builds submit` manual a partir de um source local (nosso caso)
+# deixa $SHORT_SHA vazio, o que gerava uma tag invalida
+# ("passasorte-api:", sem nada depois dos dois-pontos) e quebrava o build.
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
@@ -17,13 +23,13 @@ steps:
       - "-f"
       - "apps/api/Dockerfile"
       - "-t"
-      - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$SHORT_SHA"
+      - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$BUILD_ID"
       - "-t"
       - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:latest"
       - "."
 
 images:
-  - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$SHORT_SHA"
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$BUILD_ID"
   - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:latest"
 
 options:
