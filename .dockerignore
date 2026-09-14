@@ -1,0 +1,22 @@
+# Docker build context excludes (CLAUDE.md - apps/api first deploy, Cloud Run).
+node_modules
+**/node_modules
+dist
+**/dist
+.turbo
+**/.turbo
+.expo
+**/.expo
+.git
+.github
+.vscode
+.idea
+*.log
+apps/mobile
+apps/web
+.env
+.env.*
+!.env.example
+!**/.env.example
+coverage
+**/coverage

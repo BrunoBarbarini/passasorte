@@ -1,0 +1,30 @@
+# infrastructure/cloudbuild/api.cloudbuild.yaml
+#
+# Build explicito via Cloud Build para o apps/api, rodado a partir da raiz
+# do monorepo (o contexto do build precisa ser a raiz inteira, por causa
+# do workspace pnpm - so o Dockerfile mora em apps/api/Dockerfile).
+#
+# Uso (raiz do repo, Terminal do usuario - nao roda daqui):
+#   gcloud builds submit --config infrastructure/cloudbuild/api.cloudbuild.yaml .
+#
+# Depois do build, o deploy no Cloud Run e um comando separado (ver
+# infrastructure/cloudbuild/deploy-api.sh).
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "apps/api/Dockerfile"
+      - "-t"
+      - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$SHORT_SHA"
+      - "-t"
+      - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:latest"
+      - "."
+
+images:
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:$SHORT_SHA"
+  - "us-central1-docker.pkg.dev/$PROJECT_ID/passasorte/passasorte-api:latest"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
