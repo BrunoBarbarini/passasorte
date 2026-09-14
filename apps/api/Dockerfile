@@ -17,10 +17,21 @@
 # do workspace inteiro (lockfile unico), gera o Prisma Client a partir do
 # schema na raiz (prisma/schema.prisma - nao existe um por app), builda
 # apenas @passasorte/api e os pacotes de workspace dos quais ele depende
-# (turbo run build --filter=@passasorte/api...), e a imagem final mantem a
-# mesma estrutura de diretorios do monorepo (node_modules com os symlinks
-# pnpm intactos) para os imports "@passasorte/*" continuarem resolvendo em
-# runtime sem nenhum bundler adicional.
+# (turbo run build --filter=@passasorte/api...).
+#
+# Estagio de runtime: copia a arvore /app INTEIRA do estagio de build (em
+# vez de escolher arquivo por arquivo). Primeira versao deste Dockerfile
+# copiava so node_modules da raiz + package.json/dist de cada pacote, o
+# que quebrou em producao: pnpm NAO faz hoist para node_modules da raiz
+# por padrao - cada pacote do workspace (apps/api, packages/*) tem seu
+# PROPRIO node_modules com os symlinks so das suas dependencias diretas
+# (ex.: apps/api/node_modules/@passasorte/observability). Sem copiar o
+# node_modules de cada pacote, o Node falhava no boot com
+# "Cannot find package '@passasorte/observability'" (ERR_MODULE_NOT_FOUND)
+# e o Cloud Run derrubava o container por nao abrir a porta a tempo.
+# Copiar a arvore inteira garante a mesma estrutura de symlinks que
+# funcionou durante o build - custa uma imagem maior (inclui devDependencies
+# e pacotes nao usados como testkit), aceitavel para este primeiro deploy.
 
 FROM node:22-slim AS base
 ENV PNPM_HOME="/pnpm"
@@ -49,32 +60,13 @@ COPY . .
 RUN pnpm exec prisma generate --schema=prisma/schema.prisma
 RUN pnpm exec turbo run build --filter=@passasorte/api...
 
-# ---- runtime: imagem final, so com o que roda em producao -----------------
+# ---- runtime: imagem final, arvore /app inteira do estagio de build -------
 FROM base AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/package.json ./package.json
-COPY --from=build /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
-COPY --from=build /app/prisma ./prisma
-
-COPY --from=build /app/apps/api/package.json ./apps/api/package.json
-COPY --from=build /app/apps/api/dist ./apps/api/dist
-
-COPY --from=build /app/packages/analytics/package.json ./packages/analytics/package.json
-COPY --from=build /app/packages/analytics/dist ./packages/analytics/dist
-COPY --from=build /app/packages/api-contract/package.json ./packages/api-contract/package.json
-COPY --from=build /app/packages/api-contract/dist ./packages/api-contract/dist
-COPY --from=build /app/packages/application/package.json ./packages/application/package.json
-COPY --from=build /app/packages/application/dist ./packages/application/dist
-COPY --from=build /app/packages/config/package.json ./packages/config/package.json
-COPY --from=build /app/packages/config/dist ./packages/config/dist
-COPY --from=build /app/packages/domain/package.json ./packages/domain/package.json
-COPY --from=build /app/packages/domain/dist ./packages/domain/dist
-COPY --from=build /app/packages/observability/package.json ./packages/observability/package.json
-COPY --from=build /app/packages/observability/dist ./packages/observability/dist
+COPY --from=build /app ./
 
 WORKDIR /app/apps/api
 
