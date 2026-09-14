@@ -32,3 +32,6 @@ infrastructure/terraform/.terraform/
 infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/.terraform.lock.hcl
+
+# Segredos do deploy manual do apps/api (Cloud Run) - nunca commitar.
+infrastructure/cloudbuild/deploy-api.local.env

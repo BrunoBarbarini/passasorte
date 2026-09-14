@@ -7,10 +7,16 @@
 # o gcloud ja configurado (gcloud init) e apontando para o projeto
 # "passasorte".
 #
-# Antes de rodar, preencha as duas variaveis abaixo:
-#   DATABASE_URL   -> connection string do Postgres do Supabase (a mesma
-#                      usada no seu .env.local / painel do Supabase).
-#   SUPABASE_URL   -> https://<seu-projeto>.supabase.co
+# Segredos (DATABASE_URL/SUPABASE_URL) NAO ficam neste arquivo (ele e
+# versionado no git) - ficam em
+# infrastructure/cloudbuild/deploy-api.local.env, que e gitignored e e
+# carregado abaixo se existir. Rode o setup abaixo uma vez para criar
+# esse arquivo local:
+#
+#   cat > infrastructure/cloudbuild/deploy-api.local.env <<'ENVEOF'
+#   DATABASE_URL="postgresql://usuario:senha@host:porta/postgres"
+#   SUPABASE_URL="https://<seu-projeto>.supabase.co"
+#   ENVEOF
 #
 # REDIS_URL fica com um valor placeholder de proposito: Redis nao e
 # realmente usado em nenhum lugar do codigo hoje (so no Terraform,
@@ -25,12 +31,18 @@ REGION="us-central1"
 REPO="passasorte"
 SERVICE="passasorte-api"
 
-DATABASE_URL="COLE_AQUI_A_DATABASE_URL_DO_SUPABASE"
-SUPABASE_URL="COLE_AQUI_A_SUPABASE_URL"
+LOCAL_ENV_FILE="$(dirname "$0")/deploy-api.local.env"
+if [[ -f "$LOCAL_ENV_FILE" ]]; then
+  # shellcheck disable=SC1090
+  source "$LOCAL_ENV_FILE"
+fi
+
+DATABASE_URL="${DATABASE_URL:-COLE_AQUI_A_DATABASE_URL_DO_SUPABASE}"
+SUPABASE_URL="${SUPABASE_URL:-COLE_AQUI_A_SUPABASE_URL}"
 REDIS_URL="redis://placeholder:6379"
 
 if [[ "$DATABASE_URL" == "COLE_AQUI_A_DATABASE_URL_DO_SUPABASE" ]]; then
-  echo "Edite este arquivo e preencha DATABASE_URL e SUPABASE_URL antes de rodar." >&2
+  echo "Crie infrastructure/cloudbuild/deploy-api.local.env com DATABASE_URL e SUPABASE_URL antes de rodar (ver comentario no topo deste arquivo)." >&2
   exit 1
 fi
 
