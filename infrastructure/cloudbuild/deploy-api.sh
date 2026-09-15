@@ -14,10 +14,23 @@
 # esse arquivo local:
 #
 #   cat > infrastructure/cloudbuild/deploy-api.local.env <<'ENVEOF'
-#   DATABASE_URL="postgresql://usuario:senha@host:porta/postgres"
+#   DATABASE_URL="postgresql://usuario:senha@host:porta/postgres?pgbouncer=true"
 #   SUPABASE_URL="https://<seu-projeto>.supabase.co"
 #   ENVEOF
 #
+# DATABASE_URL precisa do parametro "?pgbouncer=true" no final (TASK-062,
+# achado no teste E2E do backoffice de 15/09/2026): sem ele, toda query do
+# Prisma contra o pooler de transaction-mode do Supabase (porta 6543)
+# falhava com "PrismaClientUnknownRequestError: prepared statement \"sN\"
+# does not exist" (Postgres 26000) - o Prisma usa prepared statements no
+# servidor por padrao, e eles nao sobrevivem ao pooler trocando a conexao
+# fisica por baixo em transaction pooling mode. Isso quebrava LITERALMENTE
+# toda chamada autenticada da API em producao (nao so o backoffice - ate
+# rotas antigas de /operations quebravam), mas so foi descoberto agora
+# porque o gate de MFA (TASK-061) estava bloqueando a maioria das chamadas
+# autenticadas antes de chegarem nessa query. Configure DATABASE_URL com
+# esse parametro em deploy-api.local.env (ver exemplo acima).
+
 # REDIS_URL fica com um valor placeholder de proposito: Redis nao e
 # realmente usado em nenhum lugar do codigo hoje (so no Terraform,
 # especulativo da Fase 8b) - so existe aqui porque o schema de env
