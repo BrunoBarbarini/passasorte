@@ -2,6 +2,7 @@ import { Body, Controller, Inject, Param, Post, UseGuards } from "@nestjs/common
 import { CreateRoomSchema, HoldPositionsSchema } from "@passasorte/api-contract";
 import {
   CreateRoomUseCase,
+  OpenRoomUseCase,
   LockRoomEntriesUseCase,
   StartRoomUseCase,
   HoldPositionsUseCase,
@@ -74,6 +75,13 @@ export class RoomsController {
       })),
       operationsConfig: input.operationsConfig,
     });
+  }
+
+  @Post("rooms/:roomId/open")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  open(@Param("roomId") roomId: string): Promise<GameRoom> {
+    return new OpenRoomUseCase(this.roomRepository).execute({ roomId });
   }
 
   @Post("rooms/:roomId/lock-entries")

@@ -95,6 +95,9 @@ export default function RoomDetailPage() {
         <Card style={{ marginBottom: spacing.lg }}>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Ações (TASK-024)</h2>
           <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
+            <Button variant="secondary" disabled={busy || room.status !== "DRAFT"} onClick={() => void runAction("open", "Abrir sala")}>
+              Abrir sala
+            </Button>
             <Button variant="secondary" disabled={busy || room.status !== "OPEN"} onClick={() => void runAction("lock-entries", "Travar entradas")}>
               Travar entradas
             </Button>

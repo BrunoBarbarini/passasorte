@@ -41,6 +41,7 @@ export * from "./use-cases/campaign/list-public-campaigns.use-case.js";
 
 export * from "./use-cases/room/hold-positions.use-case.js";
 export * from "./use-cases/room/create-room.use-case.js";
+export * from "./use-cases/room/open-room.use-case.js";
 export * from "./use-cases/room/lock-room-entries.use-case.js";
 export * from "./use-cases/room/start-room.use-case.js";
 
