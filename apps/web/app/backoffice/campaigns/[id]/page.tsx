@@ -139,9 +139,14 @@ export default function CampaignDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      const gameConfig = JSON.parse(gameConfigJson);
-      const participationPackages = JSON.parse(packagesJson);
-      const operationsConfig = JSON.parse(opsConfigJson);
+      // Explicitly typed `unknown` (not the `any` JSON.parse returns) -
+      // this app's eslint config (@typescript-eslint/no-unsafe-assignment)
+      // forbids assigning `any` even to a local, and `unknown` is honest
+      // here anyway: this screen doesn't validate the shape, the API's
+      // own CreateRoomSchema (Zod) does that server-side.
+      const gameConfig: unknown = JSON.parse(gameConfigJson);
+      const participationPackages: unknown = JSON.parse(packagesJson);
+      const operationsConfig: unknown = JSON.parse(opsConfigJson);
       await apiRequest(`/campaigns/${campaignId}/rooms`, {
         method: "POST",
         accessToken: session.access_token,
