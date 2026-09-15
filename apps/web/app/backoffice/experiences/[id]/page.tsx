@@ -24,6 +24,7 @@ export default function ExperienceDetailPage() {
   const [status, setStatus] = useState<ExperienceStatus>("DRAFT");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
@@ -31,13 +32,18 @@ export default function ExperienceDetailPage() {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const exp = await apiRequest<ExperienceView>(`/experiences/${experienceId}`, {
-      accessToken: session.access_token,
-    });
-    setExperience(exp);
-    setTitle(exp.title);
-    setDescription(exp.description);
-    setStatus(exp.status);
+    try {
+      const exp = await apiRequest<ExperienceView>(`/experiences/${experienceId}`, {
+        accessToken: session.access_token,
+      });
+      setExperience(exp);
+      setTitle(exp.title);
+      setDescription(exp.description);
+      setStatus(exp.status);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar a experience.");
+    }
   }, [session, experienceId]);
 
   useEffect(() => {
@@ -63,8 +69,19 @@ export default function ExperienceDetailPage() {
     }
   }
 
-  if (loading || !session || !experience) {
+  if (loading || !session) {
     return <main style={{ padding: spacing.xl }}>Carregando...</main>;
+  }
+
+  if (!experience) {
+    return (
+      <>
+        <Nav />
+        <main style={{ padding: spacing.xl, maxWidth: 700, margin: "0 auto" }}>
+          <Banner tone="error">{loadError ?? "Carregando a experience..."}</Banner>
+        </main>
+      </>
+    );
   }
 
   return (
@@ -75,6 +92,7 @@ export default function ExperienceDetailPage() {
           title={experience.title}
           actions={<StatusPill status={experience.status} />}
         />
+        {loadError && <Banner tone="error">{loadError}</Banner>}
         {error && <Banner tone="error">{error}</Banner>}
         <Card style={{ marginBottom: spacing.lg }}>
           <form onSubmit={(e) => void handleUpdate(e)}>

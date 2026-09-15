@@ -35,6 +35,7 @@ export default function MerchantDetailPage() {
   const [locations, setLocations] = useState<MerchantLocationView[]>([]);
   const [experiences, setExperiences] = useState<ExperienceView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [legalName, setLegalName] = useState("");
@@ -56,16 +57,24 @@ export default function MerchantDetailPage() {
   const refresh = useCallback(async () => {
     if (!session) return;
     const token = session.access_token;
-    const [m, locs, exps] = await Promise.all([
-      apiRequest<MerchantView>(`/backoffice/merchants/${merchantId}`, { accessToken: token }),
-      apiRequest<MerchantLocationView[]>(`/merchants/${merchantId}/locations`, { accessToken: token }),
-      apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, { accessToken: token }),
-    ]);
-    setMerchant(m);
-    setLegalName(m.legalName);
-    setDisplayName(m.displayName);
-    setLocations(locs);
-    setExperiences(exps);
+    try {
+      const [m, locs, exps] = await Promise.all([
+        apiRequest<MerchantView>(`/backoffice/merchants/${merchantId}`, { accessToken: token }),
+        apiRequest<MerchantLocationView[]>(`/merchants/${merchantId}/locations`, { accessToken: token }),
+        apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, { accessToken: token }),
+      ]);
+      setMerchant(m);
+      setLegalName(m.legalName);
+      setDisplayName(m.displayName);
+      setLocations(locs);
+      setExperiences(exps);
+      setLoadError(null);
+    } catch (err) {
+      // Bug real (15/09/2026): sem isto, uma falha aqui (403 de MFA, 404,
+      // 500) deixava `merchant` para sempre null e a tela ficava presa em
+      // "Carregando..." pra sempre, sem nenhum erro visível.
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar o merchant.");
+    }
   }, [session, merchantId]);
 
   useEffect(() => {
@@ -160,8 +169,23 @@ export default function MerchantDetailPage() {
     }
   }
 
-  if (loading || !session || !merchant) {
+  if (loading || !session) {
     return <main style={{ padding: spacing.xl }}>Carregando...</main>;
+  }
+
+  if (!merchant) {
+    // Bug real (15/09/2026): antes desta mudança, qualquer erro no
+    // refresh() acima deixava esta tela travada em "Carregando..." pra
+    // sempre, sem nenhuma indicação do que deu errado (ex.: 403 por MFA
+    // exigido para OPERATOR/ADMIN em produção).
+    return (
+      <>
+        <Nav />
+        <main style={{ padding: spacing.xl, maxWidth: 900, margin: "0 auto" }}>
+          <Banner tone="error">{loadError ?? "Carregando o merchant..."}</Banner>
+        </main>
+      </>
+    );
   }
 
   return (
@@ -181,6 +205,7 @@ export default function MerchantDetailPage() {
           }
         />
 
+        {loadError && <Banner tone="error">{loadError}</Banner>}
         {error && <Banner tone="error">{error}</Banner>}
 
         <Card style={{ marginBottom: spacing.xl }}>

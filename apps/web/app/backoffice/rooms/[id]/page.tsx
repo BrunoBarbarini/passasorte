@@ -24,6 +24,7 @@ export default function RoomDetailPage() {
 
   const [room, setRoom] = useState<GameRoomFullView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -32,10 +33,15 @@ export default function RoomDetailPage() {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const r = await apiRequest<GameRoomFullView>(`/backoffice/rooms/${roomId}`, {
-      accessToken: session.access_token,
-    });
-    setRoom(r);
+    try {
+      const r = await apiRequest<GameRoomFullView>(`/backoffice/rooms/${roomId}`, {
+        accessToken: session.access_token,
+      });
+      setRoom(r);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar a sala.");
+    }
   }, [session, roomId]);
 
   useEffect(() => {
@@ -56,8 +62,19 @@ export default function RoomDetailPage() {
     }
   }
 
-  if (loading || !session || !room) {
+  if (loading || !session) {
     return <main style={{ padding: spacing.xl }}>Carregando...</main>;
+  }
+
+  if (!room) {
+    return (
+      <>
+        <Nav />
+        <main style={{ padding: spacing.xl, maxWidth: 700, margin: "0 auto" }}>
+          <Banner tone="error">{loadError ?? "Carregando a sala..."}</Banner>
+        </main>
+      </>
+    );
   }
 
   return (
@@ -65,6 +82,7 @@ export default function RoomDetailPage() {
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 700, margin: "0 auto" }}>
         <PageHeader title={`Sala ${room.id}`} actions={<StatusPill status={room.status} />} />
+        {loadError && <Banner tone="error">{loadError}</Banner>}
         {error && <Banner tone="error">{error}</Banner>}
 
         <Card style={{ marginBottom: spacing.lg }}>

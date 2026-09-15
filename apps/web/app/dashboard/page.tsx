@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [backlog, setBacklog] = useState<OutboxBacklog | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
@@ -43,18 +44,30 @@ export default function DashboardPage() {
   const refresh = useCallback(async () => {
     if (!session) return;
     const token = session.access_token;
-    const entries = await Promise.all(
-      MONITORED_STATUSES.map(async (status) => {
-        const rooms = await apiRequest<GameRoomView[]>(`/operations/rooms?status=${status}`, {
-          accessToken: token,
-        });
-        return [status, rooms] as const;
-      }),
-    );
-    setRoomsByStatus(Object.fromEntries(entries));
-    setBacklog(
-      await apiRequest<OutboxBacklog>("/operations/outbox-backlog", { accessToken: token }),
-    );
+    try {
+      const entries = await Promise.all(
+        MONITORED_STATUSES.map(async (status) => {
+          const rooms = await apiRequest<GameRoomView[]>(`/operations/rooms?status=${status}`, {
+            accessToken: token,
+          });
+          return [status, rooms] as const;
+        }),
+      );
+      setRoomsByStatus(Object.fromEntries(entries));
+      setBacklog(
+        await apiRequest<OutboxBacklog>("/operations/outbox-backlog", { accessToken: token }),
+      );
+      setLoadError(null);
+    } catch (err) {
+      // Bug real encontrado no teste E2E do backoffice (15/09/2026): esta
+      // tela nunca tinha try/catch no carregamento - qualquer falha (403
+      // de MFA para OPERATOR/ADMIN, CORS antes da correção, 500) virava
+      // uma promise rejeitada silenciosa, e a tela mostrava "Nenhuma
+      // sala." pra todo status, como se estivesse tudo ok e vazio. Isso
+      // explica por que o operador conseguiu "acessar" este dashboard
+      // sem MFA no passado: ele carregava, mas nunca mostrou dados reais.
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar dados operacionais.");
+    }
   }, [session]);
 
   useEffect(() => {
@@ -86,6 +99,8 @@ export default function DashboardPage() {
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 1000, margin: "0 auto" }}>
         <PageHeader title="Operações" subtitle="Fila de eventos e ciclo de vida das salas em andamento." />
+
+        {loadError && <Banner tone="error">{loadError}</Banner>}
 
         <Card style={{ marginBottom: spacing.xl }}>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Fila de eventos (outbox)</h2>

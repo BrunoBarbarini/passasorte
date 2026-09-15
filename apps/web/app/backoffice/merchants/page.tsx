@@ -28,6 +28,7 @@ export default function MerchantsPage() {
   const [displayName, setDisplayName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
@@ -35,10 +36,20 @@ export default function MerchantsPage() {
 
   const refresh = useCallback(async () => {
     if (!session) return;
-    const rows = await apiRequest<MerchantView[]>("/backoffice/merchants", {
-      accessToken: session.access_token,
-    });
-    setMerchants(rows);
+    try {
+      const rows = await apiRequest<MerchantView[]>("/backoffice/merchants", {
+        accessToken: session.access_token,
+      });
+      setMerchants(rows);
+      setLoadError(null);
+    } catch (err) {
+      // Bug real encontrado no teste E2E (15/09/2026): esta chamada não
+      // tinha try/catch nenhum - qualquer falha (403 de MFA, 500, rede)
+      // virava uma promise rejeitada silenciosa e a tela mostrava "nenhum
+      // merchant cadastrado" como se a lista estivesse vazia de verdade,
+      // escondendo o erro real do operador.
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar merchants.");
+    }
   }, [session]);
 
   useEffect(() => {
@@ -75,6 +86,8 @@ export default function MerchantsPage() {
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 900, margin: "0 auto" }}>
         <PageHeader title="Merchants" subtitle="FR-010 — cadastro e gestão de comerciantes parceiros." />
+
+        {loadError && <Banner tone="error">{loadError}</Banner>}
 
         <Card style={{ marginBottom: spacing.xl }}>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Novo merchant</h2>

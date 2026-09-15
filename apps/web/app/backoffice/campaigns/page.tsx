@@ -39,6 +39,7 @@ function CampaignsPageInner() {
   const [experiences, setExperiences] = useState<ExperienceView[]>([]);
   const [campaigns, setCampaigns] = useState<CampaignView[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const [merchantId, setMerchantId] = useState(searchParams.get("merchantId") ?? "");
@@ -52,15 +53,20 @@ function CampaignsPageInner() {
   const refresh = useCallback(async () => {
     if (!session) return;
     const token = session.access_token;
-    const [ms, page] = await Promise.all([
-      apiRequest<MerchantView[]>("/backoffice/merchants", { accessToken: token }),
-      apiRequest<CampaignListPageView>(
-        `/backoffice/campaigns${merchantId ? `?merchantId=${merchantId}` : ""}`,
-        { accessToken: token },
-      ),
-    ]);
-    setMerchants(ms);
-    setCampaigns(page.items);
+    try {
+      const [ms, page] = await Promise.all([
+        apiRequest<MerchantView[]>("/backoffice/merchants", { accessToken: token }),
+        apiRequest<CampaignListPageView>(
+          `/backoffice/campaigns${merchantId ? `?merchantId=${merchantId}` : ""}`,
+          { accessToken: token },
+        ),
+      ]);
+      setMerchants(ms);
+      setCampaigns(page.items);
+      setLoadError(null);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Falha ao carregar campanhas.");
+    }
   }, [session, merchantId]);
 
   useEffect(() => {
@@ -72,9 +78,13 @@ function CampaignsPageInner() {
       setExperiences([]);
       return;
     }
-    void apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, {
+    apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, {
       accessToken: session.access_token,
-    }).then(setExperiences);
+    })
+      .then(setExperiences)
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : "Falha ao carregar experiences do merchant.");
+      });
   }, [session, merchantId]);
 
   async function handleCreate(event: FormEvent): Promise<void> {
@@ -106,6 +116,8 @@ function CampaignsPageInner() {
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 900, margin: "0 auto" }}>
         <PageHeader title="Campanhas" subtitle="FR-013..FR-017 — criação, aprovação, publicação e cancelamento." />
+
+        {loadError && <Banner tone="error">{loadError}</Banner>}
 
         <Card style={{ marginBottom: spacing.xl }}>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Nova campanha (rascunho)</h2>
