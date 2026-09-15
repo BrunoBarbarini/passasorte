@@ -23,6 +23,13 @@
 # especulativo da Fase 8b) - so existe aqui porque o schema de env
 # (packages/config/src/env.schema.ts) exige a variavel para o processo
 # subir. Ver comentario no Dockerfile.
+#
+# CORS_ALLOWED_ORIGINS e "deny by default" (TASK-059, CLAUDE.md #18): sem
+# essa variavel a API bloqueia TODA chamada feita por um navegador,
+# inclusive do proprio apps/web em producao. O primeiro deploy real
+# (14/09/2026) esqueceu de setar isso, e so foi descoberto depois - ver
+# CORS_ALLOWED_ORIGINS abaixo, e se o dominio do apps/web na Vercel mudar
+# (dominio proprio, novo deploy, preview branch), atualize a lista aqui.
 
 set -euo pipefail
 
@@ -40,6 +47,7 @@ fi
 DATABASE_URL="${DATABASE_URL:-COLE_AQUI_A_DATABASE_URL_DO_SUPABASE}"
 SUPABASE_URL="${SUPABASE_URL:-COLE_AQUI_A_SUPABASE_URL}"
 REDIS_URL="redis://placeholder:6379"
+CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-https://web-neon-five-46.vercel.app}"
 
 if [[ "$DATABASE_URL" == "COLE_AQUI_A_DATABASE_URL_DO_SUPABASE" ]]; then
   echo "Crie infrastructure/cloudbuild/deploy-api.local.env com DATABASE_URL e SUPABASE_URL antes de rodar (ver comentario no topo deste arquivo)." >&2
@@ -73,7 +81,7 @@ gcloud run deploy "$SERVICE" \
   --platform managed \
   --allow-unauthenticated \
   --port 8080 \
-  --set-env-vars "NODE_ENV=production,SERVICE_NAME=passasorte-api,DATABASE_URL=$DATABASE_URL,SUPABASE_URL=$SUPABASE_URL,REDIS_URL=$REDIS_URL"
+  --set-env-vars "NODE_ENV=production,SERVICE_NAME=passasorte-api,DATABASE_URL=$DATABASE_URL,SUPABASE_URL=$SUPABASE_URL,REDIS_URL=$REDIS_URL,CORS_ALLOWED_ORIGINS=$CORS_ALLOWED_ORIGINS"
 
 echo "---"
 echo "Deploy concluido. URL do servico:"
