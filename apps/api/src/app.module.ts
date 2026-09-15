@@ -10,6 +10,7 @@ import { ParticipationsModule } from "./modules/participations/participations.mo
 import { NotificationsModule } from "./modules/notifications/notifications.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
 import { BenefitsModule } from "./modules/benefits/benefits.module.js";
+import { BackofficeModule } from "./modules/backoffice/backoffice.module.js";
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { BenefitsModule } from "./modules/benefits/benefits.module.js";
     NotificationsModule,
     OperationsModule,
     BenefitsModule,
+    BackofficeModule,
   ],
   controllers: [HealthController],
 })

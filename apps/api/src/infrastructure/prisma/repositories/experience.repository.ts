@@ -24,6 +24,14 @@ function toDomainExperience(row: PrismaExperience): Experience {
 export class PrismaExperienceRepository implements ExperienceRepository {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
+  async listByMerchant(merchantId: string): Promise<Experience[]> {
+    const rows = await this.prisma.experience.findMany({
+      where: { merchantId },
+      orderBy: { createdAt: "desc" },
+    });
+    return rows.map(toDomainExperience);
+  }
+
   async findById(id: string): Promise<Experience | null> {
     const row = await this.prisma.experience.findUnique({ where: { id } });
     return row ? toDomainExperience(row) : null;

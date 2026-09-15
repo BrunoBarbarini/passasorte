@@ -3,6 +3,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../src/context/auth-context";
+import { Banner, Button, Card, Field, Input } from "../../src/components/ui";
+import { colors, spacing } from "../../src/theme/tokens";
 
 export default function LoginPage() {
   const { session, signIn } = useAuth();
@@ -31,36 +33,46 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 360, margin: "80px auto", padding: 16 }}>
-      <h1>PassaSorte Backoffice</h1>
-      <form onSubmit={(e) => void handleSubmit(e)}>
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="email">E-mail</label>
-          <input
-            id="email"
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            style={{ display: "block", width: "100%", padding: 8 }}
-          />
-        </div>
-        <div style={{ marginBottom: 12 }}>
-          <label htmlFor="password">Senha</label>
-          <input
-            id="password"
-            type="password"
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            style={{ display: "block", width: "100%", padding: 8 }}
-          />
-        </div>
-        {error && <p style={{ color: "crimson" }}>{error}</p>}
-        <button type="submit" disabled={submitting} style={{ padding: "8px 16px" }}>
-          {submitting ? "Entrando..." : "Entrar"}
-        </button>
-      </form>
+    <main
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.navy,
+        padding: spacing.lg,
+      }}
+    >
+      <Card style={{ width: "100%", maxWidth: 380 }}>
+        <h1 style={{ fontSize: 22, marginBottom: spacing.xs }}>PassaSorte</h1>
+        <p style={{ color: colors.textMuted, marginTop: 0, marginBottom: spacing.xl }}>Backoffice</p>
+        <form onSubmit={(e) => void handleSubmit(e)}>
+          <Field label="E-mail" htmlFor="email">
+            <Input
+              id="email"
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="Senha" htmlFor="password">
+            <Input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Field>
+          {error && <Banner tone="error">{error}</Banner>}
+          <Button type="submit" loading={submitting} style={{ width: "100%" }}>
+            Entrar
+          </Button>
+        </form>
+      </Card>
     </main>
   );
 }

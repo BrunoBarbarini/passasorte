@@ -22,6 +22,8 @@ export interface CreateMerchantLocationInput {
 }
 
 export interface MerchantRepository {
+  /** Backoffice-only read: every merchant, newest first (no pagination yet - small dataset). */
+  list(): Promise<Merchant[]>;
   findById(id: string): Promise<Merchant | null>;
   create(input: CreateMerchantInput): Promise<Merchant>;
   update(id: string, input: UpdateMerchantInput): Promise<Merchant>;

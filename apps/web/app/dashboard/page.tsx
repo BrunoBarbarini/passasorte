@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../src/context/auth-context";
 import { apiRequest } from "../../src/lib/api-client";
 import type { GameRoomView, OutboxBacklog, RoomStatus } from "../../src/types/api";
+import { Nav } from "../../src/components/Nav";
+import { Banner, Button, Card, EmptyState, PageHeader, StatusPill } from "../../src/components/ui";
+import { colors, spacing } from "../../src/theme/tokens";
 
 const MONITORED_STATUSES: RoomStatus[] = [
   "OPEN",
@@ -21,10 +24,12 @@ const MONITORED_STATUSES: RoomStatus[] = [
  * ENABLE_GAME_AUTO_ADVANCE is on (CLAUDE.md #22, default OFF) — this
  * page is how an operator does that work manually while it's off, via
  * apps/api's OperationsController, never a second implementation of
- * the same logic.
+ * the same logic. Restyled to the PassaSorte design system alongside
+ * the new merchants/experiences/campaigns/rooms backoffice screens —
+ * logic unchanged.
  */
 export default function DashboardPage() {
-  const { session, loading, signOut } = useAuth();
+  const { session, loading } = useAuth();
   const router = useRouter();
   const [roomsByStatus, setRoomsByStatus] = useState<Record<string, GameRoomView[]>>({});
   const [backlog, setBacklog] = useState<OutboxBacklog | null>(null);
@@ -71,95 +76,102 @@ export default function DashboardPage() {
   }
 
   if (loading || !session) {
-    return <main style={{ padding: 24 }}>Carregando...</main>;
+    return <main style={{ padding: spacing.xl }}>Carregando...</main>;
   }
 
   const token = session.access_token;
 
   return (
-    <main style={{ padding: 24, maxWidth: 900, margin: "0 auto" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Operações — PassaSorte</h1>
-        <button onClick={() => void signOut()}>Sair</button>
-      </div>
+    <>
+      <Nav />
+      <main style={{ padding: spacing.xl, maxWidth: 1000, margin: "0 auto" }}>
+        <PageHeader title="Operações" subtitle="Fila de eventos e ciclo de vida das salas em andamento." />
 
-      <section style={{ marginBottom: 24 }}>
-        <h2>Fila de eventos (outbox)</h2>
-        <p>Pendentes: {backlog?.pending ?? "—"}</p>
-        <button
-          disabled={busy}
-          onClick={() =>
-            void runAction(
-              () =>
-                apiRequest("/operations/dispatch-outbox", { method: "POST", accessToken: token }),
-              "Despachar outbox",
-            )
-          }
-        >
-          Despachar agora
-        </button>{" "}
-        <button
-          disabled={busy}
-          onClick={() =>
-            void runAction(
-              () => apiRequest("/operations/expire-holds", { method: "POST", accessToken: token }),
-              "Expirar reservas",
-            )
-          }
-        >
-          Expirar reservas vencidas
-        </button>
-      </section>
+        <Card style={{ marginBottom: spacing.xl }}>
+          <h2 style={{ fontSize: 16, marginTop: 0 }}>Fila de eventos (outbox)</h2>
+          <p style={{ color: colors.textMuted }}>Pendentes: {backlog?.pending ?? "—"}</p>
+          <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () =>
+                    apiRequest("/operations/dispatch-outbox", { method: "POST", accessToken: token }),
+                  "Despachar outbox",
+                )
+              }
+            >
+              Despachar agora
+            </Button>
+            <Button
+              variant="secondary"
+              disabled={busy}
+              onClick={() =>
+                void runAction(
+                  () => apiRequest("/operations/expire-holds", { method: "POST", accessToken: token }),
+                  "Expirar reservas",
+                )
+              }
+            >
+              Expirar reservas vencidas
+            </Button>
+          </div>
+        </Card>
 
-      {message && <p>{message}</p>}
+        {message && <Banner>{message}</Banner>}
 
-      {MONITORED_STATUSES.map((status) => (
-        <section key={status} style={{ marginBottom: 24 }}>
-          <h2>{status}</h2>
-          {(roomsByStatus[status] ?? []).length === 0 ? (
-            <p style={{ color: "#666" }}>Nenhuma sala.</p>
-          ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>Sala</th>
-                  <th style={{ textAlign: "left" }}>Capacidade</th>
-                  <th style={{ textAlign: "left" }}>Criada em</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {(roomsByStatus[status] ?? []).map((room) => (
-                  <tr key={room.id}>
-                    <td>{room.id}</td>
-                    <td>{room.capacity}</td>
-                    <td>{new Date(room.createdAt).toLocaleString("pt-BR")}</td>
-                    <td>
-                      {(status === "RUNNING" || status === "FINAL_LOCK") && (
-                        <button
-                          disabled={busy}
-                          onClick={() =>
-                            void runAction(
-                              () =>
-                                apiRequest(`/operations/rooms/${room.id}/advance`, {
-                                  method: "POST",
-                                  accessToken: token,
-                                }),
-                              `Avançar sala ${room.id}`,
-                            )
-                          }
-                        >
-                          Avançar
-                        </button>
-                      )}
-                    </td>
+        {MONITORED_STATUSES.map((status) => (
+          <Card key={status} style={{ marginBottom: spacing.lg }}>
+            <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md }}>
+              <StatusPill status={status} />
+            </div>
+            {(roomsByStatus[status] ?? []).length === 0 ? (
+              <EmptyState label="Nenhuma sala." />
+            ) : (
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Sala</th>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Capacidade</th>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Criada em</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
-      ))}
-    </main>
+                </thead>
+                <tbody>
+                  {(roomsByStatus[status] ?? []).map((room) => (
+                    <tr key={room.id}>
+                      <td style={{ padding: `${spacing.xs}px 0` }}>{room.id}</td>
+                      <td>{room.capacity}</td>
+                      <td>{new Date(room.createdAt).toLocaleString("pt-BR")}</td>
+                      <td>
+                        {(status === "RUNNING" || status === "FINAL_LOCK") && (
+                          <Button
+                            variant="secondary"
+                            disabled={busy}
+                            onClick={() =>
+                              void runAction(
+                                () =>
+                                  apiRequest(`/operations/rooms/${room.id}/advance`, {
+                                    method: "POST",
+                                    accessToken: token,
+                                  }),
+                                `Avançar sala ${room.id}`,
+                              )
+                            }
+                          >
+                            Avançar
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+        ))}
+      </main>
+    </>
   );
 }

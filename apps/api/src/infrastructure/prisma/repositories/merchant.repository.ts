@@ -43,6 +43,11 @@ function toDomainLocation(row: PrismaMerchantLocation): MerchantLocation {
 export class PrismaMerchantRepository implements MerchantRepository {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
+  async list(): Promise<Merchant[]> {
+    const rows = await this.prisma.merchant.findMany({ orderBy: { createdAt: "desc" } });
+    return rows.map(toDomainMerchant);
+  }
+
   async findById(id: string): Promise<Merchant | null> {
     const row = await this.prisma.merchant.findUnique({ where: { id } });
     return row ? toDomainMerchant(row) : null;

@@ -36,6 +36,9 @@ import { InvalidCampaignTransitionError } from "@passasorte/domain";
 class InMemoryMerchantRepository implements MerchantRepository {
   merchants = new Map<string, Merchant>();
 
+  async list() {
+    return [...this.merchants.values()];
+  }
   async findById(id: string) {
     return this.merchants.get(id) ?? null;
   }
@@ -86,6 +89,9 @@ class InMemoryMerchantRepository implements MerchantRepository {
 class InMemoryExperienceRepository implements ExperienceRepository {
   experiences = new Map<string, Experience>();
 
+  async listByMerchant(merchantId: string) {
+    return [...this.experiences.values()].filter((e) => e.merchantId === merchantId);
+  }
   async findById(id: string) {
     return this.experiences.get(id) ?? null;
   }
