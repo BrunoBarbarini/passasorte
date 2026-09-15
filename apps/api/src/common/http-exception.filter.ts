@@ -16,8 +16,10 @@ import { ApplicationError, ValidationError } from "@passasorte/application";
  * client. Handles, in order: @passasorte/application's ApplicationError
  * taxonomy (CLAUDE.md #26 - Domain/Validation/Authorization/NotFound/
  * Conflict/Unauthenticated), Nest's HttpException (validation pipes,
- * framework-level errors), and everything else as an opaque 500 that is
- * logged in full server-side but never detailed to the client.
+ * framework-level errors), Fastify-level errors that carry their own
+ * valid 4xx statusCode (body/content-type parsing, payload too large -
+ * TASK-062), and everything else as an opaque 500 that is logged in full
+ * server-side but never detailed to the client.
  */
 @Catch()
 export class GlobalHttpExceptionFilter implements ExceptionFilter {
@@ -54,6 +56,37 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
           message,
           requestId,
           details: typeof response === "object" ? response : {},
+        },
+      });
+      return;
+    }
+
+    // Erros de nivel Fastify (parsing de body/content-type, payload grande
+    // demais, etc.) sao Error simples com .statusCode/.code, nao um
+    // HttpException do Nest - cairiam no catch-all como 500 opaco sem este
+    // bloco. Bug real encontrado no teste E2E do backoffice (15/09/2026):
+    // POST sem corpo em rota que nao exige corpo (lock-entries, start)
+    // virava "UNEXPECTED_ERROR" 500 em vez do 400 correto que o proprio
+    // Fastify ja tinha identificado - contraria CLAUDE.md #16 (nunca
+    // esconder um erro de cliente atras de um 500 generico).
+    if (
+      exception instanceof Error &&
+      "statusCode" in exception &&
+      typeof (exception as { statusCode: unknown }).statusCode === "number" &&
+      (exception as { statusCode: number }).statusCode >= 400 &&
+      (exception as { statusCode: number }).statusCode < 500
+    ) {
+      const status = (exception as { statusCode: number }).statusCode;
+      const code =
+        "code" in exception && typeof (exception as { code: unknown }).code === "string"
+          ? (exception as { code: string }).code
+          : "BAD_REQUEST";
+      void reply.status(status).send({
+        error: {
+          code,
+          message: exception.message,
+          requestId,
+          details: {},
         },
       });
       return;

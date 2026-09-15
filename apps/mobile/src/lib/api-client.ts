@@ -34,7 +34,16 @@ export async function apiRequest<TResponse>(
   path: string,
   options: ApiRequestOptions = {},
 ): Promise<TResponse> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  // So manda Content-Type: application/json quando ha corpo de verdade.
+  // Bug real encontrado no teste E2E do backoffice (15/09/2026): as acoes
+  // sem payload (ex.: POST /rooms/:id/lock-entries, /start) mandavam esse
+  // header mesmo com body undefined, e o parser JSON do Fastify rejeita
+  // corpo vazio com Content-Type: application/json (FST_ERR_CTP_EMPTY_JSON_BODY)
+  // - isso quebrava os botoes "Travar entradas"/"Iniciar sala" em producao.
+  const headers: Record<string, string> = {};
+  if (options.body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   if (options.accessToken) {
     headers.Authorization = `Bearer ${options.accessToken}`;
   }
