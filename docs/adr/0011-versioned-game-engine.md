@@ -25,3 +25,8 @@ Enables deterministic replay/audit (CLAUDE.md FR-044) and fast unit/
 property-based testing (CLAUDE.md #39) without spinning up infrastructure;
 requires every rule change to consider `engineVersion` and active-room
 compatibility (CLAUDE.md #60).
+
+
+## Amendment (2026-11-11)
+
+Contract amended by ADR-022: adds `skipTurn`, `executionType` (MANUAL | AUTOMATIC), `outcome` (APPLIED | SKIPPED) and a circular bar; the Sorte (not the participants) moves.

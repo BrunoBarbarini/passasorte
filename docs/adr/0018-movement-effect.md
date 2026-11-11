@@ -2,25 +2,21 @@
 
 ## Status
 
-TBD
+SUPERSEDED by ADR-022 (2026-11-11)
 
 ## Context
 
-CLAUDE.md BR-022 states the exact effect of a LEFT/RIGHT movement command
-is undecided; BR-023 records `PLAYER_TRANSLATION_V1` as an ASSUMPTION for
-simulation/prototyping only, not a product decision. CLAUDE.md #56
-(Product - CRITICAL) lists "what exactly does a movement move?" as an open
-question, and #58 forbids inventing the answer.
+BR-022 left the effect of a LEFT/RIGHT command undecided and BR-023 recorded
+`PLAYER_TRANSLATION_V1` as a simulation-only ASSUMPTION. The consolidated core
+rules (CR-002/CR-003) and the owner's decisions of 2026-11-11 settle it.
 
 ## Decision
 
-Not yet decided. The GameEngine interface (ADR-011) must accept a pluggable
-movement-resolution strategy so this can be resolved without an engine
-rewrite; `PLAYER_TRANSLATION_V1` may be used only in non-product
-simulations/tests, clearly labeled as such.
+Movements displace **the Sorte**, never the participants' positions. One credit
+= one position, on a circular bar. See ADR-022 for the full rule set.
+`PLAYER_TRANSLATION_V1` is obsolete and must not be used in any room.
 
 ## Consequences
 
-Phase 2 (Game Domain Simulator, CLAUDE.md #53) cannot finalize the real
-movement semantics until this is answered by the product owner; simulator
-work must not be mistaken for a shipped rule.
+The simulator and tests built on `PLAYER_TRANSLATION_V1` must be replaced
+together with GameEngine V2 (CLAUDE.md §0.4, TASK-083).

@@ -2,22 +2,27 @@
 
 ## Status
 
-TBD
+PARTIALLY DECIDED (2026-11-11)
 
 ## Context
 
-CLAUDE.md BR-033 and #56 (Product - CRITICAL) leave open: what exactly
-determines a winner, multi-winner behavior, and what happens when the
-Sorte zone lands on no occupied position.
+BR-033 left open what determines a winner, multi-winner behavior and the
+empty-zone case. Under the reconciled model every bar position is bought and
+absent pickers are auto-allocated, so every position is owned.
 
 ## Decision
 
-Not yet decided. `GameResult`/`Winner` persistence (ADR-011, FR-042/FR-043)
-must be able to represent zero, one, or multiple winners without a schema
-change, so this can be resolved without a migration once answered.
+- **MVP:** `winningZoneSize = 1`. The Sorte's final position is the winning
+  position; its owner is the single winner. No block, no multiple winners, no
+  prize split (DECISION-06).
+- **Future (K > 1):** the engine keeps `winningZoneSize` as configuration and
+  `GameResult`/`Winner` persistence must represent several winning positions
+  without a schema change, but K > 1 is rejected for real rooms until the
+  zone-expansion rule (center/parity/edges/wrap) and the prize-split rule are
+  formally defined. They must not be invented (T-05, T-11).
 
 ## Consequences
 
-Phase 2-3 result-resolution work must keep winner cardinality generic
-until the product owner decides; no default ("first closest wins", etc.)
-may be shipped as if it were confirmed.
+Result resolution for the MVP is a direct lookup of the owner of the final
+position. The empty-winning-zone case cannot occur while unassigned positions
+are forbidden.

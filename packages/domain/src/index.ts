@@ -52,6 +52,8 @@ export * from "./game/game-config.js";
 export * from "./game/winner-selection.js";
 export * from "./game/game-engine.js";
 export * from "./game/game-simulator.js";
+// GameEngine V2 (ADR-022): namespaced until it replaces the obsolete V1 prototype; not wired to real rooms yet.
+export * as gameV2 from "./game/v2/index.js";
 export * from "./room/room-state-machine.js";
 export * from "./room/room.entity.js";
 export * from "./room/position-hold.entity.js";
