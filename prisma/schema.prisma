@@ -379,10 +379,11 @@ model Participation {
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  room             GameRoom             @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  user             User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  room             GameRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user             User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
   movementCommands MovementCommandLog[]
   roundActions     RoundAction[]
+  roundSubmissions RoundActionSubmission[]
 
   @@unique([roomId, entrySequence])
   @@index([userId, roomId])
@@ -585,21 +586,46 @@ model GameRound {
   resolutionStartedAt   DateTime? @map("resolution_started_at")
   resolutionCompletedAt DateTime? @map("resolution_completed_at")
   status                String    @default("SCHEDULED")
-  /// T-32 is TBD: records which policy ordered the actions.
+  /// T-32 (approved): ENTRY_SEQUENCE_V1.
   resolutionOrderPolicy String?   @map("resolution_order_policy")
   luckPositionBefore    Int?      @map("luck_position_before")
   luckPositionAfter     Int?      @map("luck_position_after")
   createdAt             DateTime  @default(now()) @map("created_at")
 
-  room    GameRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  actions RoundAction[]
+  room        GameRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  actions     RoundAction[]
+  submissions RoundActionSubmission[]
 
   @@unique([roomId, roundNo])
   @@index([status, actionWindowClosesAt])
   @@map("game_rounds")
 }
 
-/// DECISION-21 / BR-085. Append-only (trigger in SQL). UNIQUE(round, participation) is BR-056.
+/// T-33: replaceable submissions; the highest `submissionSequence` per
+/// (round, participation) wins. Append-only (trigger in SQL).
+model RoundActionSubmission {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId            String   @map("round_id") @db.Uuid
+  participationId    String   @map("participation_id") @db.Uuid
+  submissionSequence Int      @map("submission_sequence")
+  kind               String
+  credits            Int
+  submittedAt        DateTime @default(now()) @map("submitted_at")
+  idempotencyKey     String   @map("idempotency_key")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  round         GameRound     @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  resolvedAs    RoundAction[]
+
+  @@unique([roundId, participationId, submissionSequence])
+  @@unique([participationId, roundId, idempotencyKey])
+  @@index([roundId])
+  @@map("round_action_submissions")
+}
+
+/// DECISION-21 / BR-085: resolved outcome per participant per round. Append-only
+/// (trigger in SQL). UNIQUE(round, participation) is BR-056. Order: ENTRY_SEQUENCE_V1.
 model RoundAction {
   id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   roundId            String    @map("round_id") @db.Uuid
@@ -610,18 +636,18 @@ model RoundAction {
   executionType      String    @map("execution_type")
   outcome            String    @default("APPLIED")
   skipReason         String?   @map("skip_reason")
+  submissionId       String?   @map("submission_id") @db.Uuid
   submittedAt        DateTime? @map("submitted_at")
-  idempotencyKey     String?   @map("idempotency_key")
-  resolutionSequence Int?      @map("resolution_sequence")
+  resolutionSequence Int       @map("resolution_sequence")
   luckPositionBefore Int?      @map("luck_position_before")
   luckPositionAfter  Int?      @map("luck_position_after")
   createdAt          DateTime  @default(now()) @map("created_at")
 
-  round         GameRound     @relation(fields: [roundId], references: [id], onDelete: Restrict)
-  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  round         GameRound              @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  participation Participation          @relation(fields: [participationId], references: [id], onDelete: Restrict)
+  submission    RoundActionSubmission? @relation(fields: [submissionId], references: [id], onDelete: Restrict)
 
   @@unique([roundId, participationId])
-  @@unique([participationId, roundId, idempotencyKey])
   @@index([roundId])
   @@map("round_actions")
 }

@@ -149,3 +149,10 @@ Vetores: múltiplas contas, bots/sniping na seleção e nos turnos, replay de mo
 - TBDs resolvidos: T-03, T-09, T-13, T-15. Novos em aberto (não inventados): **T-32** ordem de resolução da rodada, **T-33** edição antes do fim da janela; **T-10** limiares de temperatura segue aberto. Total: 33 registrados, 10 resolvidos, 23 abertos.
 - Engine V2: resolução coletiva de rodada, fase de entrada, Sorte inicial e distância circular mínima implementados com 70 testes.
 - Quadrantes seguem no `board.ts` legado (TASK-103).
+
+### Adendo 2 — respostas do sócio ao PDF "3 perguntas em aberto" (2026-11-12, 11:42)
+
+- **T-32 resolvido:** jogadas da rodada aplicadas em ordem de entrada (`ENTRY_SEQUENCE_V1`).
+- **T-33 resolvido:** a jogada pode ser trocada até a janela fechar; vale a última. A migração (ainda não aplicada) foi ajustada: `round_action_submissions` (append-only, várias por participante) e `round_actions` como resultado da resolução. Engine: `entrySequenceOrder` e `selectLatestSubmissions`.
+- **T-10 parcial:** 5 níveis, em % do tamanho da barra, sem distância exata. **Faltam os limites numéricos de cada nível.**
+- Total: 33 TBDs registrados, 12 resolvidos, 21 abertos. Nenhum bloqueia o Engine V1.

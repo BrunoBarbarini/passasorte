@@ -7,10 +7,13 @@
  * configured autoAction) or a skip - applied to the Sorte in a caller-supplied
  * order.
  *
- * ROUND_RESOLUTION_ORDER is TBD (T-32): this module does NOT choose an order.
- * The proposed `entrySequence` order is exposed as `proposedEntrySequenceOrder`
- * for the caller to opt into explicitly, and the policy id is recorded in the
- * audit. With the current rules (additive circular displacement) the Sorte
+ * ROUND_RESOLUTION_ORDER (T-32, approved 2026-11-12): actions are applied in
+ * `entrySequence` order (`entrySequenceOrder`, policy `ENTRY_SEQUENCE_V1`). The
+ * order is still an explicit input of `resolveRound` and the policy id is
+ * recorded in the audit, so a future policy is a new id, not a silent change.
+ * A participant may replace a submission until the window closes; the last
+ * one wins (T-33, approved) - `selectLatestSubmissions` picks it before
+ * resolution. With the current rules (additive circular displacement) the Sorte
  * position at the END of the round does not depend on the order; only the
  * per-action `luckPositionBefore/After` in the audit do.
  */
@@ -98,16 +101,47 @@ export interface RoundPrimitives {
   validateSubmission(state: GameStateV2, submission: SubmissionCheckInput): void;
 }
 
-export const PROPOSED_ENTRY_SEQUENCE_ORDER_POLICY = "PROPOSED_ENTRY_SEQUENCE_V1";
+export const ENTRY_SEQUENCE_ORDER_POLICY = "ENTRY_SEQUENCE_V1";
 
-/**
- * PROPOSED, NOT APPROVED (T-32): participants ordered by entrySequence. Never
- * applied implicitly; the caller must pass it as `resolutionOrder`.
- */
-export function proposedEntrySequenceOrder(state: GameStateV2): readonly string[] {
+/** Approved (T-32): participants ordered by entrySequence. The caller passes it as `resolutionOrder`. */
+export function entrySequenceOrder(state: GameStateV2): readonly string[] {
   return [...state.seats]
     .sort((a, b) => a.entrySequence - b.entrySequence)
     .map((seat) => seat.participantId);
+}
+
+/** A stored submission; `submissionSequence` is server-assigned and increases per participant. */
+export interface StoredSubmission extends RoundSubmission {
+  readonly submissionSequence: number;
+}
+
+/**
+ * T-33 (approved): a participant may replace the action until the window
+ * closes and the LAST submission counts. Picks the highest `submissionSequence`
+ * per participant; two records with the same sequence are a data error.
+ */
+export function selectLatestSubmissions(
+  stored: readonly StoredSubmission[],
+): readonly RoundSubmission[] {
+  const latest = new Map<string, StoredSubmission>();
+  for (const record of stored) {
+    const current = latest.get(record.participantId);
+    if (current && current.submissionSequence === record.submissionSequence) {
+      throw new GameEngineError(
+        "DUPLICATE_ROUND_ACTION",
+        "Duas jogadas do mesmo participante têm a mesma sequência de envio.",
+      );
+    }
+    if (!current || record.submissionSequence > current.submissionSequence) {
+      latest.set(record.participantId, record);
+    }
+  }
+  return [...latest.values()].map(({ participantId, kind, credits, submittedAt }) => ({
+    participantId,
+    kind,
+    credits,
+    submittedAt,
+  }));
 }
 
 function parseTime(value: string, label: string): number {

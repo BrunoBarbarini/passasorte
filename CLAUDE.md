@@ -279,7 +279,7 @@ Source: `PassaSorte_Core_Regras_Consolidadas.pdf`. All `CR-xxx` below are **FACT
 
 **Phases (DECISION-10).** Entry period (each participant declares positions + movements + autoAction; no bar exists yet) → entries close → `boardSize = Σ position credits` → position selection in `entrySequence` order → all positions owned (`allocatedPositions == boardSize`, `EMPTY_POSITIONS = 0`) → initial Sorte placement (random, server-side, auditable) → collective rounds → end → result → audit. A participant cannot pick specific positions before entries close (CR-010).
 
-**Order.** `entrySequence` gives pick priority (CR-011, DECISION-08), which is a real benefit of entering early, and stays an auditable attribute of every action. It is **not** (yet) the order in which a round's actions are applied: `ROUND_RESOLUTION_ORDER` is TBD (T-32); `entrySequence` is only the PROPOSED candidate. With additive circular displacement the Sorte position at the end of a round is the same for any order; only the per-action before/after positions in the audit depend on it.
+**Order (T-32, approved 2026-11-12).** `entrySequence` gives pick priority (CR-011, DECISION-08), which is a real benefit of entering early, and is also the order in which a round's actions are applied (`ENTRY_SEQUENCE_V1`, recorded per round in the audit). With additive circular displacement the Sorte position at the end of a round is the same for any order; only the per-action before/after positions in the audit depend on it. A different policy in the future is a new policy id, never a silent change.
 
 **Movement.** At a turn the participant spends ≥1 movement credits to displace the Sorte LEFT (toward lower positions) or RIGHT (toward higher positions), or STAY. Each credit displaces the Sorte by **exactly one position** (owner's worked examples, DECISION-01). The bar is **circular** (`BAR_BOUNDARY_POLICY = CIRCULAR`): `N + RIGHT → 1` and `1 + LEFT → N`, in both directions; CLAMP, REJECT and BOUNCE/REVERSE_DIRECTION are forbidden. One command may spend several credits (e.g. RIGHT ×5). The state mutation is shared and applied by the server when the round is resolved (DECISION-16). **EXAMPLE:** Sorte at 100 at the start of a round; the round's submissions are RIGHT ×3 and LEFT ×1 → the Sorte is revealed at 102. **EXAMPLE (wrap):** bar of 200, Sorte at 198, RIGHT ×4 → 199, 200, 1, 2 → final position 2.
 
@@ -353,9 +353,11 @@ Explicit product decisions; the newest decision wins over earlier text. Numbers 
 | DECISION-21 | Detailed audit per participant per round | Round, participant, `entrySequence`, movements, directions, execution type, timestamp, `luckPositionBefore/After`, `resolutionSequence` (§6.2 Audit). |
 | DECISION-22 | No quadrant-based rounds now | `QUADRANT_BASED_ROUND_SCHEDULING = NOT NOW`. |
 
-**Related rules stated with them:** one valid action per participant per round (unless product explicitly allows edits, T-33); idempotency by `participationId + roundId + idempotencyKey`; after `serverTime >= actionWindowClosesAt` no new action is accepted and the app's visual state is never trusted; offline participants follow DECISION-03/04 (`autoAction ≠ NONE` → automatic move; `NONE` → skip without consuming).
+**Related rules stated with them:** one effective action per participant per round — the participant may replace it until the window closes and the **last submission counts** (T-33, approved 2026-11-12); idempotency by `participationId + roundId + idempotencyKey`; after `serverTime >= actionWindowClosesAt` no new submission is accepted and the app's visual state is never trusted; offline participants follow DECISION-03/04 (`autoAction ≠ NONE` → automatic move; `NONE` → skip without consuming).
 
-**Open after these decisions (do not invent):** T-32 `ROUND_RESOLUTION_ORDER` (proposal: `entrySequence`, status PROPOSED); T-10 temperature thresholds (HOT/WARM/COLD or another model); T-33 `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE`.
+**Approved on 2026-11-12 (11:42; the partner accepted the suggestions of the PDF "3 perguntas em aberto"):** T-32 actions are applied in `entrySequence` order; T-33 a submission can be replaced until the window closes and the last one counts; T-10 (partial) the temperature has **5 levels** (as in the Design System), measured as a **percentage of the bar size** (valid for any board size), and the participant sees the level only, **never the exact distance**.
+
+**Still open (do not invent):** T-10 — the **numeric limit of each of the 5 levels** (in % of the bar). The questionnaire left them to the partner and the answer did not state them. Temperature mapping (TASK-104) stays blocked on this single item.
 
 ---
 
@@ -420,7 +422,7 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-053 ★ | Absent at position pick → server random allocation among free positions, derived from the committed randomness (auditable); rule stated in terms. | FACT |
 | BR-054 ★ | Initial Sorte position is generated server-side from committed randomness; no human input can influence it. | FACT |
 | BR-055 ★ | Every accepted action produces exactly one state transition recorded with previous/current state hash. | ASSUMPTION (integrity) |
-| BR-056 ★ | A participant has at most one accepted action per round; none is accepted outside the window or at/after `actionWindowClosesAt` (server clock). | FACT-derived (DECISION-16, supersedes the per-turn wording) |
+| BR-056 ★ | A participant has at most one **effective** action per round: they may replace their submission until the window closes and the last one counts (T-33). No submission is accepted outside the window or at/after `actionWindowClosesAt` (server clock). | FACT (DECISION-16, T-33) |
 | BR-057 ★ | Movement consumption (n credits) is atomic and idempotent: a retry never consumes n−1 or n+1. | FACT-derived |
 | BR-058 ★ | Auto-action configuration is editable only until a defined cutoff (before the participant's first turn is **TBD**, ASSUMPTION: until the room starts) and is versioned in the audit trail. | ASSUMPTION |
 | BR-059 ★ | The game continues on the server regardless of client connectivity. | FACT (source: "a partida continua") |
@@ -442,7 +444,7 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-075 ★ | The last picker receives exactly the remaining positions; the bar is never enlarged to compensate. | FACT (DECISION-11) |
 | BR-076 ★ | Campaign timing (`entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`) is configuration; no hard-coded durations. | FACT (DECISION-12) |
 | BR-077 ★ | `quadrantsEnabled = false` in the MVP; quadrant-based scheduling is NOT NOW. | FACT (DECISION-13/22) |
-| BR-078 ★ | Temperature distance is the minimum **circular** distance (BR-014); thresholds are TBD (T-10) and must not be invented. | FACT (DECISION-14) |
+| BR-078 ★ | Temperature distance is the minimum **circular** distance (BR-014) measured as a percentage of the bar size; 5 levels; the participant sees the level, never the exact distance. The **numeric limit of each level is TBD (T-10)** and must not be invented. | FACT (DECISION-14, T-10 partial) |
 | BR-079 ★ | The initial Sorte position is random, server-side, auditable, in `1..boardSize`, with the record `gameId, boardSize, engineVersion, randomnessCommitment, initialLuckPosition, generatedAt`; never client or administrator input. | FACT (DECISION-15) |
 | BR-080 ★ | Each round has a collective action window in which every participant may submit; the server resolves the round when it closes. | FACT (DECISION-16) |
 | BR-081 ★ | `roundActionWindowSeconds` is configuration (per campaign or game config), never a constant. | FACT (DECISION-17) |
@@ -450,9 +452,9 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-083 ★ | Resolution is not shown as slow sequential per-player playback; detail is available through audit/replay. | FACT (DECISION-19) |
 | BR-084 ★ | Large Sorte jumps between rounds are legitimate; no artificial mechanism may be used to produce them. | FACT (DECISION-20) |
 | BR-085 ★ | Every round persists, per participant: `roundNumber`, `windowOpenAt/CloseAt`, `participationId`, `entrySequence`, `actionSubmittedAt`, action, automatic/manual, `movementsConsumed`, `resolutionSequence`, `luckPositionBefore/After`. | FACT (DECISION-21) |
-| BR-086 ★ | Round actions are idempotent: `participationId + roundId + idempotencyKey` never registers or consumes twice; deadlines use the server clock; retries and duplicates are tolerated. | FACT (DECISION-16 concurrency) |
-| BR-087 ★ | The order in which a round's actions are applied is `ROUND_RESOLUTION_ORDER` = **TBD (T-32)**; the engine takes it as an explicit input and records its policy id; `entrySequence` is only PROPOSED. | TBD |
-| BR-088 ★ | Whether a participant may change a submitted action before the window closes is `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE` = **TBD (T-33)**; until decided the engine accepts at most one action per participant per round. | TBD |
+| BR-086 ★ | Submissions are idempotent: `participationId + roundId + idempotencyKey` never registers twice (a retry returns the original result); each accepted submission gets an increasing `submissionSequence`; deadlines use the server clock. | FACT (DECISION-16 concurrency, T-33) |
+| BR-087 ★ | A round's actions are applied in `entrySequence` order (`ENTRY_SEQUENCE_V1`). The engine still takes the order as an explicit input and the policy id is stored per round, so a future policy is versioned. | FACT (T-32, approved 2026-11-12) |
+| BR-088 ★ | Replacing a submitted action before the window closes is allowed; every submission is kept (append-only) and the one with the highest `submissionSequence` is resolved (`selectLatestSubmissions`). | FACT (T-33, approved 2026-11-12) |
 
 ---
 
@@ -482,7 +484,7 @@ interface GameEngine {
   validateSubmission(state: GameState, submission: { participantId: string; kind: 'LEFT'|'RIGHT'|'STAY'; credits: number }): void;
 
   // Resolves ONE collective round (DECISION-16): every participant gets exactly one outcome
-  // (manual / automatic / skipped), applied in the caller-supplied order (T-32 is TBD, no default).
+  // (manual / automatic / skipped), applied in the caller-supplied order (`entrySequenceOrder`, policy `ENTRY_SEQUENCE_V1`, approved T-32).
   // Returns the new state, the transitions, replay steps and one audit row per participant (DECISION-21).
   resolveRound(state: GameState, round: RoundInput): RoundResolution;
 
@@ -524,10 +526,10 @@ type Transition = {
 
 **Collective round, entry phase and initial Sorte (DECISION-07..21; implemented in `packages/domain/src/game/v2/`).**
 
-- `resolveRound(state, { roundId, roundNumber, windowOpensAt, windowClosesAt, resolutionStartedAt, submissions, resolutionOrder, resolutionOrderPolicy })`: submissions must be inside `[windowOpensAt, windowClosesAt)` on the server clock, at most one per participant; resolution cannot start before the window closes; `resolutionOrder` must contain every participant exactly once. `proposedEntrySequenceOrder()` exists but is **PROPOSED** (T-32) and is never applied implicitly.
+- `resolveRound(state, { roundId, roundNumber, windowOpensAt, windowClosesAt, resolutionStartedAt, submissions, resolutionOrder, resolutionOrderPolicy })`: submissions must be inside `[windowOpensAt, windowClosesAt)` on the server clock, at most one per participant; resolution cannot start before the window closes; `resolutionOrder` must contain every participant exactly once. `entrySequenceOrder()` (policy `ENTRY_SEQUENCE_V1`, approved T-32) is passed explicitly by the caller; `selectLatestSubmissions()` applies T-33 (last submission wins) before resolution.
 - Entry phase (`entry-phase.ts`): `computeBoardSize` (Σ position credits), `createPositionSelection`, `currentPicker` (entry order), `pickPositions` (exact positions, exclusive, exactly the purchased count), `autoAllocatePositions` (absent picker, deterministic from the sealed seed), `isSelectionComplete`, `toParticipantSeats` (refuses to build seats while any position is empty).
 - Initial Sorte (`randomness.ts`): `deriveInitialSortePosition(seed, N)` (uniform on 1..N; the uniform distribution is an ASSUMPTION, T-13) and `createInitialSorteRecord` (verifies the seed against the commitment and returns the DECISION-15 record). Independent derivation stream per purpose.
-- `minCircularDistance(positions, sorte, N)` implements BR-014; temperature thresholds are not implemented (T-10).
+- `minCircularDistance(positions, sorte, N)` implements BR-014; temperature levels are not implemented (T-10: the numeric limits are still missing).
 
 State hashes use SHA-256 over a **canonical serialization** (stable key order, integers only, no floats, no locale). The chain links each transition to its predecessor; the genesis hash covers the config snapshot, seat list, commitment hash and bar size.
 
@@ -783,9 +785,14 @@ bar_positions         (room_id, position_no)  PK/unique;  participation_id NULL 
 game_rounds           (id, room_id, round_no, action_window_opens_at, action_window_closes_at,
                         resolution_started_at, resolution_completed_at, status,
                         resolution_order_policy)  UNIQUE(room_id, round_no)
-round_actions         (id, round_id, participation_id, kind, credits, execution_type MANUAL|AUTOMATIC,
-                        submitted_at, resolution_sequence, outcome APPLIED|SKIPPED, skip_reason,
-                        idempotency_key)  UNIQUE(round_id, participation_id); append-only
+round_action_submissions (id, round_id, participation_id, submission_sequence, kind, credits,
+                        submitted_at (server), idempotency_key)
+                        UNIQUE(round_id, participation_id, submission_sequence),
+                        UNIQUE(participation_id, round_id, idempotency_key); append-only (T-33)
+round_actions         (id, round_id, participation_id, entry_sequence, kind, credits,
+                        execution_type MANUAL|AUTOMATIC, outcome APPLIED|SKIPPED, skip_reason,
+                        submission_id (winning submission), submitted_at, resolution_sequence (0-based),
+                        luck_position_before/after)  UNIQUE(round_id, participation_id); append-only (the RESULT of a round)
 initial_sorte_records (room_id UNIQUE, board_size, engine_version, randomness_commitment_hash,
                         initial_luck_position, generated_at)  immutable
 game_transitions      (room_id, sequence gapless, round_action_id, sorte_before, sorte_after,
@@ -1068,18 +1075,19 @@ Two people must not acquire the same position. Use a transaction + `UNIQUE(room_
 
 ## 26.4 Round actions (collective window)
 
-Thousands of participants may submit inside the same window and around its close. A participant may not act: outside the window; at/after `actionWindowClosesAt` (server clock); more than once per round (until T-33 is decided); with more credits than their balance or `maxMovementsPerRound` allows. Submissions are cheap (validate + insert); the **resolution** is the serial part: one transaction per room that locks the room row (`SELECT ... FOR UPDATE` or `pg_advisory_xact_lock(hash(room_id))`) because the Sorte is a single shared value.
+Thousands of participants may submit inside the same window and around its close. A participant may not act: outside the window; at/after `actionWindowClosesAt` (server clock); with an invalid action (the previous submission stays effective); a replaced submission is kept for audit and only the last counts (T-33); with more credits than their balance or `maxMovementsPerRound` allows. Submissions are cheap (validate + insert); the **resolution** is the serial part: one transaction per room that locks the room row (`SELECT ... FOR UPDATE` or `pg_advisory_xact_lock(hash(room_id))`) because the Sorte is a single shared value.
 
 ```text
 SUBMIT (many in parallel, no room lock):
   assert window OPEN and now() < closes_at      -- server clock
   engine.validateSubmission(state, submission)   -- cap, balance, STAY cost
-  INSERT round_action UNIQUE(round_id, participation_id)  -- 2nd attempt violates UNIQUE
-  idempotency: (participation_id, round_id, idempotency_key) replays the original response
+  INSERT round_action_submission (submission_sequence = last + 1)  -- replaces the previous one; last wins (T-33)
+  idempotency: UNIQUE(participation_id, round_id, idempotency_key) replays the original response
 
 RESOLVE (one worker wins the compare-and-swap WINDOW_CLOSED -> RESOLVING):
   BEGIN; lock room
-    load actions; engine.resolveRound(state, input) -> transitions + audit rows
+    load submissions -> selectLatestSubmissions; engine.resolveRound(state, input with entrySequenceOrder) -> transitions + audit rows
+    INSERT round_actions (one row per participant, the RESULT; UNIQUE(round_id, participation_id))
     guarded balance UPDATE: SET used = used + :n WHERE used + :n <= bought
     INSERT game_transitions (sequence = last+1, previous_hash = last.hash); INSERT outbox events
   COMMIT
@@ -1467,14 +1475,14 @@ TASK-094 Credit configuration: single credit unit, creditQuantity vs creditUnitP
 TASK-095 autoAction LEFT|RIGHT|STAY|NONE: configuration API, AUTOMATIC execution (1 movement), SKIPPED turns, pt-BR skip notification (G-06, G-07)
 TASK-096 Movement expiry at participation end; no ledger/cashback/transfer/carry-over (G-08)
 TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
-TASK-098 Entry phase persistence: `entry_sequence` counter, entry lock transaction, `boardSize = Σ positions` (DECISION-08/09/10). Expand migration `20261112140000_engine_v2_rounds_entry_sequence` written (counter, unique `entry_sequence`, `game_rounds`, `round_actions`, `initial_sorte_records`) and validated locally; NOT yet applied to Supabase
+TASK-098 Entry phase persistence: `entry_sequence` counter, entry lock transaction, `boardSize = Σ positions` (DECISION-08/09/10). Expand migration `20261112140000_engine_v2_rounds_entry_sequence` written (counter, unique `entry_sequence`, `game_rounds`, `round_action_submissions`, `round_actions`, `initial_sorte_records`) and validated locally; NOT yet applied to Supabase
 TASK-099 Initial Sorte: persist `initial_sorte_records`; derive from the sealed seed at match start (DECISION-15). Pure `createInitialSorteRecord` DONE
 TASK-100 Round window UX: strong alert (push, in-app, sound, haptic, countdown), aggregated resolution animation (DECISION-18/19)
 TASK-101 Round audit viewer/replay: per-participant per-round rows (DECISION-21)
 TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, `roundActionWindowSeconds` (DECISION-12/17)
 TASK-103 Remove quadrants from the legacy board model and config (DECISION-13) — DONE
-TASK-104 Temperature mapping from circular distance — BLOCKED by T-10 (thresholds)
-TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission` (BR-086)
+TASK-104 Temperature mapping (5 levels, % of the bar size, level only) — BLOCKED only by the numeric limits of each level (T-10)
+TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission`, replace-until-close with `submissionSequence` (BR-086/088)
 ```
 
 ---
@@ -1545,7 +1553,7 @@ TASK-105 Round submission API: idempotent (`participationId + roundId + idempote
 | R-19 | MEDIUM | Operational hygiene: test data in production; credentials ever pasted in chat/logs must be rotated | cleanup runbook; rotate |
 | R-20 | LOW | Premature microservices/realtime over-engineering | §11; ADR required |
 | R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns |
-| R-22 | MEDIUM | Round resolution order undefined (T-32): harmless with additive circular displacement (same end-of-round position) but the audit's per-action before/after depends on it, and any future order-dependent rule would change results | engine takes the order as an explicit input + policy id; decide T-32 before the pilot; versioned engine |
+| R-22 | LOW | ~~Round resolution order undefined~~ Resolved by T-32 (`entrySequence` order). Residual: any future order-dependent rule would change results | policy id stored per round; versioned engine |
 | R-23 | HIGH | Window-open/close load spikes: thousands of submissions at the deadline and push fan-out at the window start | validate+insert path without a room lock; idempotent submit; queue/worker for notifications; load test (TASK-105) |
 | R-24 | MEDIUM | Pick-priority fairness and comprehension: late entrants may be left with the worst remaining positions (accepted, DECISION-11) | disclose in the terms (BR-060); show remaining free positions; clear "entering earlier = choosing earlier" copy |
 
@@ -1568,7 +1576,7 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | ~~T-07~~ | RESOLVED (ASSUMPTION) | No "final strategy lock / final movement plan": the game ends at the last turn of the last round (BR-067). Adopted 2026-11-11 with the owner's authorization; revisable | — |
 | T-08 | HIGH | Narrowed (DECISION-02/05): single credit unit and per-campaign `maxCreditsPerParticipant` are decided. Remaining: per-category minimum/maximum (e.g. at least one position or movement) and the fate of the old 80% example | config schema |
 | ~~T-09~~ | RESOLVED | Number and schedule of rounds are per-campaign configuration (`roundSchedule`, DECISION-12); there is no universal number | — |
-| T-10 | HIGH | Temperature: **distance is circular (decided, DECISION-14)**; open: number of levels, thresholds (HOT/WARM/COLD or another model), individual vs global, visibility of exact distance. Quadrants are not used (DECISION-13) | live UI / projection (not the engine) |
+| T-10 | HIGH | Temperature, **partly decided 2026-11-12**: circular distance (DECISION-14), 5 levels, % of the bar size, level only (no exact distance). **Open: the numeric limit of each level** (% of the bar) | live UI / projection (not the engine); TASK-104 |
 | T-11 | MEDIUM (future) | Prize split for K > 1. **Not applicable in the MVP** (1 position → 1 winner, DECISION-06) | Fulfillment/Commerce (not the engine) |
 | T-12 | HIGH | Room limits: minimum participants, maximum, what happens below the minimum | room operations |
 | ~~T-13~~ | RESOLVED (ASSUMPTION on distribution) | Initial Sorte is random, server-side, auditable, in 1..N (DECISION-15). Implemented as uniform over 1..N (ASSUMPTION; revisable) | — |
@@ -1576,8 +1584,8 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | ~~T-15~~ | RESOLVED | `entrySequence` is assigned transactionally from a per-room counter; no ties (DECISION-08, BR-072) | — |
 | T-16 | MEDIUM | Cancellation/refund/dispute after bar formation (resizing is impossible) | operations |
 | T-30 | HIGH | Limits per user/room, multiple participations, affiliates of merchant playing their own prize | fraud/product |
-| T-32 | HIGH | `ROUND_RESOLUTION_ORDER`: in which order the server applies a round's simultaneous actions (PROPOSED: `entrySequence`, not approved). The end-of-round Sorte position does not depend on it under current rules; the audit's `resolutionSequence` and per-action before/after do | audit detail; any future order-dependent rule |
-| T-33 | MEDIUM | `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE`: may a participant change a submitted action before the window closes (YES/NO)? Until decided the engine accepts one action per participant per round | submission API contract |
+| ~~T-32~~ | RESOLVED | Round actions are applied in `entrySequence` order (`ENTRY_SEQUENCE_V1`), approved 2026-11-12 | — |
+| ~~T-33~~ | RESOLVED | A submission can be replaced until the window closes; the last one counts (approved 2026-11-12) | — |
 | ~~T-31~~ | RESOLVED (ASSUMPTION) | Derived semantics fixed on 2026-11-11 (§6.5): STAY costs 1; `maxMovementsPerRound` explicit per campaign; no explicit pass; absent = no accepted command by the deadline; zero-balance auto action = skip (`NO_MOVEMENTS_LEFT`); auto action = exactly 1 movement | — |
 
 ## 54.2 Business, legal, technical
@@ -1598,7 +1606,7 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | T-28 | LOW | User-facing vocabulary (jogada/jogador vs movimento/participante) |
 | T-29 | MEDIUM | Behavior when a participant is offline for several days in a multi-day campaign; per-campaign timezone presentation |
 
-**Totals:** 33 TBDs registered — 10 resolved (2026-11-11: T-01, T-02, T-04, T-06 by owner decision, T-07 and T-31 as ASSUMPTIONS; 2026-11-12: T-03, T-09, T-13, T-15), 23 open: 1 CRITICAL (T-21, LEGAL GATE), 13 HIGH, 8 MEDIUM, 1 LOW. T-05 and T-11 stay MEDIUM-future because the MVP uses `winningZoneSize = 1`. T-14 and T-10 were narrowed. New: T-32 (round resolution order) and T-33 (edit before deadline). **No TBD blocks Game Engine V1.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
+**Totals:** 33 TBDs registered — 12 resolved (2026-11-11: T-01, T-02, T-04, T-06 by owner decision, T-07 and T-31 as ASSUMPTIONS; 2026-11-12: T-03, T-09, T-13, T-15, T-32, T-33), 21 open: 1 CRITICAL (T-21, LEGAL GATE), 12 HIGH, 7 MEDIUM, 1 LOW. T-05 and T-11 stay MEDIUM-future because the MVP uses `winningZoneSize = 1`. T-14 and T-10 were narrowed (T-10 now only lacks the numeric limits). **No TBD blocks Game Engine V1.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
 
 ---
 

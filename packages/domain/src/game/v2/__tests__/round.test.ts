@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { proposedEntrySequenceOrder, PROPOSED_ENTRY_SEQUENCE_ORDER_POLICY } from "../index.js";
+import {
+  entrySequenceOrder,
+  ENTRY_SEQUENCE_ORDER_POLICY,
+  selectLatestSubmissions,
+} from "../index.js";
 import type { RoundInput } from "../index.js";
 import { engine, expectCode, lcg, startGame } from "./helpers.js";
 
@@ -18,8 +22,8 @@ function round(
     windowClosesAt: CLOSE,
     resolutionStartedAt: RESOLVE,
     submissions: [],
-    resolutionOrder: proposedEntrySequenceOrder(state),
-    resolutionOrderPolicy: PROPOSED_ENTRY_SEQUENCE_ORDER_POLICY,
+    resolutionOrder: entrySequenceOrder(state),
+    resolutionOrderPolicy: ENTRY_SEQUENCE_ORDER_POLICY,
     ...overrides,
   };
 }
@@ -81,7 +85,7 @@ describe("collective round resolution (DECISION-16..21)", () => {
       executionType: "MANUAL",
       movementsConsumed: 2,
     });
-    expect(resolution.resolutionOrderPolicy).toBe(PROPOSED_ENTRY_SEQUENCE_ORDER_POLICY);
+    expect(resolution.resolutionOrderPolicy).toBe(ENTRY_SEQUENCE_ORDER_POLICY);
     // before/after chain from one action to the next
     for (let i = 1; i < resolution.audit.length; i += 1) {
       expect(resolution.audit[i]?.luckPositionBefore).toBe(
@@ -90,7 +94,7 @@ describe("collective round resolution (DECISION-16..21)", () => {
     }
   });
 
-  it("does not depend on the resolution order for the end-of-round Sorte (T-32 is TBD)", () => {
+  it("does not depend on the resolution order for the end-of-round Sorte", () => {
     const rand = lcg(7);
     for (let game = 0; game < 50; game += 1) {
       const state = startGame(FOUR, 1 + Math.floor(rand() * 16));
@@ -100,7 +104,7 @@ describe("collective round resolution (DECISION-16..21)", () => {
         credits: 1 + Math.floor(rand() * 9),
         submittedAt: OPEN,
       }));
-      const ids = proposedEntrySequenceOrder(state);
+      const ids = entrySequenceOrder(state);
       const shuffled = [...ids].sort(() => rand() - 0.5);
       const a = engine.resolveRound(state, round(state, { submissions }));
       const b = engine.resolveRound(
@@ -219,5 +223,51 @@ describe("collective round resolution (DECISION-16..21)", () => {
     );
     expect(second.luckPositionBeforeRound).toBe(first.luckPositionAfterRound);
     expect(second.state.sequence).toBe(8);
+  });
+
+  it("uses the last replaced submission and applies it in entrySequence order (T-32, T-33)", () => {
+    const state = startGame(FOUR, 8);
+    const submissions = selectLatestSubmissions([
+      {
+        participantId: "A",
+        kind: "LEFT",
+        credits: 5,
+        submittedAt: "2026-11-11T19:00:10.000Z",
+        submissionSequence: 1,
+      },
+      {
+        participantId: "D",
+        kind: "RIGHT",
+        credits: 1,
+        submittedAt: "2026-11-11T19:00:12.000Z",
+        submissionSequence: 1,
+      },
+      {
+        participantId: "A",
+        kind: "RIGHT",
+        credits: 2,
+        submittedAt: "2026-11-11T19:00:40.000Z",
+        submissionSequence: 2,
+      },
+    ]);
+    expect(submissions).toHaveLength(2);
+    const resolution = engine.resolveRound(state, round(state, { submissions }));
+    const a = resolution.audit.find((r) => r.participantId === "A");
+    expect(a).toMatchObject({ movementsConsumed: 2, executionType: "MANUAL" });
+    expect(a?.actionSubmittedAt).toBe("2026-11-11T19:00:40.000Z");
+    expect(resolution.audit.map((r) => r.entrySequence)).toEqual([1, 2, 3, 4]);
+    expect(resolution.audit.map((r) => r.resolutionSequence)).toEqual([0, 1, 2, 3]);
+  });
+
+  it("selectLatestSubmissions is independent of storage order and rejects equal sequences", () => {
+    const one = { participantId: "A", kind: "LEFT" as const, credits: 1, submittedAt: OPEN };
+    const two = { ...one, kind: "RIGHT" as const, credits: 3, submissionSequence: 2 };
+    const first = { ...one, submissionSequence: 1 };
+    expect(selectLatestSubmissions([two, first])).toEqual(selectLatestSubmissions([first, two]));
+    expect(selectLatestSubmissions([first, two])[0]).toMatchObject({ kind: "RIGHT", credits: 3 });
+    expectCode(
+      () => selectLatestSubmissions([first, { ...two, submissionSequence: 1 }]),
+      "DUPLICATE_ROUND_ACTION",
+    );
   });
 });
