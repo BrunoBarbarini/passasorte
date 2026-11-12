@@ -64,7 +64,7 @@ The repository was built on the previous constitution. These divergences are **k
 | C-16 | Pilot simulation script and tests encode the obsolete movement model | `scripts/pilot-simulation/run.ts`, `*.test.ts` | MEDIUM |
 | C-17 | Existing board/movement/temperature code may assume a bounded bar (clamped movement, linear distance); no `maxCreditsPerParticipant`; no skipped-turn semantics; `autoAction` without `NONE` (CONFIRMED by audit 2026-11-11: clamp in `movement.ts`/`sorte-progression.ts`, linear distance in `temperature.ts`, `ParticipationPackage`, 0-based positions, client-supplied `sequence`, `FINAL_LOCK` state; see `docs/LEGACY_AUDIT_ENGINE_V2.md`) | `packages/domain/src/game/{board,movement,temperature}.ts`, `participation-package.ts` | HIGH |
 | C-18 | Sequential per-participant turns (`turn`, `currentPlayerId`-style turn order, per-turn deadline) and a client-supplied `sequence`; the owner's DECISION-16 replaced them with a **collective round action window** | `advance-room-operations.use-case.ts`, `submit-movement-command.use-case.ts`, mobile `LiveGameScreen`, `api-contract/participations.ts`, `movement_command_logs.sequence` | CRITICAL |
-| C-19 | `BoardQuadrant` / `quadrants` still exist in the legacy board model; DECISION-13 sets `QUADRANTS = DISABLED` for the MVP | `packages/domain/src/game/board.ts`, `game-config.ts` | LOW |
+| C-19 | **RESOLVED 2026-11-12:** `BoardQuadrant` / `quadrants` removed from the legacy board model (DECISION-13: `QUADRANTS = DISABLED`) | `packages/domain/src/game/board.ts`, `game-config.ts` | LOW |
 
 ---
 
@@ -1467,12 +1467,12 @@ TASK-094 Credit configuration: single credit unit, creditQuantity vs creditUnitP
 TASK-095 autoAction LEFT|RIGHT|STAY|NONE: configuration API, AUTOMATIC execution (1 movement), SKIPPED turns, pt-BR skip notification (G-06, G-07)
 TASK-096 Movement expiry at participation end; no ledger/cashback/transfer/carry-over (G-08)
 TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
-TASK-098 Entry phase persistence: `entry_sequence` counter, entry lock transaction, `boardSize = Σ positions` (DECISION-08/09/10)
+TASK-098 Entry phase persistence: `entry_sequence` counter, entry lock transaction, `boardSize = Σ positions` (DECISION-08/09/10). Expand migration `20261112140000_engine_v2_rounds_entry_sequence` written (counter, unique `entry_sequence`, `game_rounds`, `round_actions`, `initial_sorte_records`) and validated locally; NOT yet applied to Supabase
 TASK-099 Initial Sorte: persist `initial_sorte_records`; derive from the sealed seed at match start (DECISION-15). Pure `createInitialSorteRecord` DONE
 TASK-100 Round window UX: strong alert (push, in-app, sound, haptic, countdown), aggregated resolution animation (DECISION-18/19)
 TASK-101 Round audit viewer/replay: per-participant per-round rows (DECISION-21)
 TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, `roundActionWindowSeconds` (DECISION-12/17)
-TASK-103 Remove quadrants from the legacy board model and config (DECISION-13)
+TASK-103 Remove quadrants from the legacy board model and config (DECISION-13) — DONE
 TASK-104 Temperature mapping from circular distance — BLOCKED by T-10 (thresholds)
 TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission` (BR-086)
 ```
