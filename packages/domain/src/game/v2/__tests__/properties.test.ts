@@ -34,9 +34,9 @@ describe("GameEngine V2 - invariants under random play (CLAUDE.md 8.3)", () => {
           const current = state.seats.find((s) => s.participantId === seat.participantId)!;
           const base = {
             participantId: seat.participantId,
-            turnId: `t${game}-${turn}`,
+            actionId: `t${game}-${turn}`,
             round,
-            turnIndexInRound: seat.turnOrder,
+            resolutionSequence: seat.entrySequence,
             serverTime: T0,
           };
           const present = next() < 0.6 && current.movementBalance > 0;
@@ -50,7 +50,7 @@ describe("GameEngine V2 - invariants under random play (CLAUDE.md 8.3)", () => {
             steps.push({ type: "MOVEMENT", command });
             state = result.state;
           } else {
-            const plan = engine.planAbsentTurn(state, seat.participantId);
+            const plan = engine.planAbsentAction(state, seat.participantId);
             if (plan.action === "AUTOMATIC") {
               const command = {
                 ...base,
@@ -63,7 +63,7 @@ describe("GameEngine V2 - invariants under random play (CLAUDE.md 8.3)", () => {
               steps.push({ type: "MOVEMENT", command });
               state = result.state;
             } else {
-              const result = engine.skipTurn(state, base);
+              const result = engine.skipAction(state, base);
               expect(result.transition.creditsConsumed).toBe(0);
               expect(result.state.sortePosition).toBe(state.sortePosition);
               steps.push({ type: "SKIP", input: base });

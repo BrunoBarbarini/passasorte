@@ -16,13 +16,13 @@ export interface GameConfigV2 {
   /** MVP = 1 (DECISION-06). Greater values are rejected until a rule is defined (BR-066). */
   readonly winningZoneSize: number;
   /** Cap on credits per MANUAL command. Explicit number or explicit `null` = no limit; no default (BR-068). */
-  readonly maxMovementsPerTurn: number | null;
+  readonly maxMovementsPerRound: number | null;
 }
 
 export interface ParticipantSeatV2 {
   readonly participantId: string;
-  /** Server-assigned confirmation order; also the turn order in every round (CR-011/CR-018). */
-  readonly turnOrder: number;
+  /** Server-assigned entry order (DECISION-08): pick priority and an auditable attribute; the resolution order of a round is NOT derived from it yet (T-32). */
+  readonly entrySequence: number;
   /** Fixed positions owned (1..N). Every position of the bar must have exactly one owner. */
   readonly positions: readonly number[];
   readonly movementBalance: number;
@@ -34,24 +34,29 @@ export interface SeatState extends ParticipantSeatV2 {
   readonly movementsExpired: number;
 }
 
-/** Context supplied by the application layer (server-owned; the engine never reads a clock). */
-export interface TurnContext {
-  readonly turnId: string;
+/**
+ * One participant's action inside one collective round window (DECISION-16).
+ * `actionId` is server-issued, one per (round, participant); `resolutionSequence`
+ * is the position of this action in the resolution of its round (T-32).
+ * Supplied by the application layer; the engine never reads a clock.
+ */
+export interface RoundActionContext {
+  readonly actionId: string;
   readonly round: number;
-  readonly turnIndexInRound: number;
+  readonly resolutionSequence: number;
   /** UTC ISO-8601, from the server clock - never from the client (BR-025). */
   readonly serverTime: string;
 }
 
-export interface MovementCommandV2 extends TurnContext {
+export interface MovementCommandV2 extends RoundActionContext {
   readonly participantId: string;
   readonly kind: SorteDirection;
-  /** MANUAL: >= 1 (STAY: exactly 1), capped by maxMovementsPerTurn. AUTOMATIC: always exactly 1. */
+  /** MANUAL: >= 1 (STAY: exactly 1), capped by maxMovementsPerRound. AUTOMATIC: always exactly 1. */
   readonly credits: number;
   readonly executionType: ExecutionType;
 }
 
-export interface SkipTurnInput extends TurnContext {
+export interface SkipActionInput extends RoundActionContext {
   readonly participantId: string;
 }
 
@@ -75,7 +80,7 @@ export interface GameStateV2 {
   readonly status: GameStatus;
   readonly sortePosition: number;
   readonly seats: readonly SeatState[];
-  readonly consumedTurnIds: readonly string[];
+  readonly consumedActionIds: readonly string[];
   readonly sequence: number;
   /** Head of the hash chain (genesis hash until the first transition). */
   readonly stateHash: string;
@@ -101,7 +106,7 @@ export interface MovementTransition extends TransitionBase {
 export interface SkipTransition extends TransitionBase {
   readonly outcome: "SKIPPED";
   readonly command: null;
-  readonly turn: TurnContext & { readonly participantId: string };
+  readonly action: RoundActionContext & { readonly participantId: string };
   readonly skipReason: SkipReason;
   readonly creditsConsumed: 0;
   readonly creditsRemainingAfter: number;
@@ -119,7 +124,7 @@ export interface TransitionResult<T extends Transition = Transition> {
   readonly transition: T;
 }
 
-export type AbsentTurnPlan =
+export type AbsentActionPlan =
   | { readonly action: "AUTOMATIC"; readonly kind: SorteDirection; readonly credits: 1 }
   | { readonly action: "SKIP"; readonly reason: SkipReason };
 
@@ -135,7 +140,7 @@ export interface GameResultV2 {
 
 export type ReplayStep =
   | { readonly type: "MOVEMENT"; readonly command: MovementCommandV2 }
-  | { readonly type: "SKIP"; readonly input: SkipTurnInput }
+  | { readonly type: "SKIP"; readonly input: SkipActionInput }
   | { readonly type: "COMPLETE"; readonly input: CompleteInput };
 
 export interface GameReplayInputV2 {

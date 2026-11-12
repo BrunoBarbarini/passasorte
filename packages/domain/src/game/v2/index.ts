@@ -4,3 +4,6 @@ export * from "./circular-bar.js";
 export * from "./canonical-hash.js";
 export * from "./credits.js";
 export * from "./engine.js";
+export * from "./randomness.js";
+export * from "./round.js";
+export * from "./entry-phase.js";

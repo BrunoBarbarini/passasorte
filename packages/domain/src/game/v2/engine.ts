@@ -6,7 +6,7 @@
  *
  * Rules implemented: circular bar, 1 position per credit (DECISION-01);
  * AUTOMATIC executes the configured autoAction for exactly 1 movement and
- * NONE / zero balance skips the turn at no cost (DECISION-03/04, BR-070);
+ * NONE / zero balance skips the round action at no cost (DECISION-03/04, BR-070);
  * unused movements EXPIRE at completion (BR-064); MVP winningZoneSize = 1
  * (DECISION-06); no final lock (BR-067); a manual STAY costs 1 (BR-021).
  */
@@ -15,8 +15,10 @@ import { chainHash, sha256Hex, canonicalize } from "./canonical-hash.js";
 import type { CanonicalValue } from "./canonical-hash.js";
 import { GameEngineError } from "./errors.js";
 import { ENGINE_V2_VERSION } from "./types.js";
+import { resolveRoundWith } from "./round.js";
+import type { RoundInput, RoundResolution, SubmissionCheckInput } from "./round.js";
 import type {
-  AbsentTurnPlan,
+  AbsentActionPlan,
   AutoAction,
   CompleteInput,
   CompleteTransition,
@@ -32,7 +34,7 @@ import type {
   SeatState,
   SkipReason,
   SkipTransition,
-  SkipTurnInput,
+  SkipActionInput,
   Transition,
   TransitionResult,
 } from "./types.js";
@@ -45,7 +47,7 @@ type TransitionBody = DistributiveOmit<Transition, "previousStateHash" | "curren
 
 function validateConfig(config: GameConfigV2): void {
   const zone: unknown = config.winningZoneSize;
-  const cap: unknown = config.maxMovementsPerTurn;
+  const cap: unknown = config.maxMovementsPerRound;
   if (typeof zone !== "number" || !Number.isSafeInteger(zone) || zone < 1) {
     throw new GameEngineError(
       "INVALID_CONFIG",
@@ -61,13 +63,13 @@ function validateConfig(config: GameConfigV2): void {
   if (cap === undefined) {
     throw new GameEngineError(
       "INVALID_CONFIG",
-      "maxMovementsPerTurn exige uma escolha explícita: um número inteiro ou null (sem limite).",
+      "maxMovementsPerRound exige uma escolha explícita: um número inteiro ou null (sem limite).",
     );
   }
   if (cap !== null && (typeof cap !== "number" || !Number.isSafeInteger(cap) || cap < 1)) {
     throw new GameEngineError(
       "INVALID_CONFIG",
-      "maxMovementsPerTurn deve ser null ou um inteiro maior ou igual a 1.",
+      "maxMovementsPerRound deve ser null ou um inteiro maior ou igual a 1.",
     );
   }
 }
@@ -91,13 +93,17 @@ function normalizeSeats(participants: readonly ParticipantSeatV2[]): {
       );
     }
     ids.add(seat.participantId);
-    if (!Number.isSafeInteger(seat.turnOrder) || seat.turnOrder < 0 || orders.has(seat.turnOrder)) {
+    if (
+      !Number.isSafeInteger(seat.entrySequence) ||
+      seat.entrySequence < 0 ||
+      orders.has(seat.entrySequence)
+    ) {
       throw new GameEngineError(
         "INVALID_SEATS",
         "A ordem de confirmação deve ser única e não negativa.",
       );
     }
-    orders.add(seat.turnOrder);
+    orders.add(seat.entrySequence);
     if (!Number.isSafeInteger(seat.movementBalance) || seat.movementBalance < 0) {
       throw new GameEngineError(
         "INVALID_SEATS",
@@ -125,10 +131,10 @@ function normalizeSeats(participants: readonly ParticipantSeatV2[]): {
     }
   }
   const seats = [...participants]
-    .sort((a, b) => a.turnOrder - b.turnOrder)
+    .sort((a, b) => a.entrySequence - b.entrySequence)
     .map<SeatState>((seat) => ({
       participantId: seat.participantId,
-      turnOrder: seat.turnOrder,
+      entrySequence: seat.entrySequence,
       positions: [...seat.positions].sort((a, b) => a - b),
       movementBalance: seat.movementBalance,
       autoAction: seat.autoAction,
@@ -148,14 +154,14 @@ function genesisHash(
     engineVersion: ENGINE_V2_VERSION,
     config: {
       winningZoneSize: config.winningZoneSize,
-      maxMovementsPerTurn: config.maxMovementsPerTurn,
+      maxMovementsPerRound: config.maxMovementsPerRound,
     },
     size,
     randomnessCommitmentHash: input.randomnessCommitmentHash,
     initialSortePosition: input.initialSortePosition,
     seats: seats.map((seat) => ({
       participantId: seat.participantId,
-      turnOrder: seat.turnOrder,
+      entrySequence: seat.entrySequence,
       positions: [...seat.positions],
       movementBalance: seat.movementBalance,
       autoAction: seat.autoAction,
@@ -179,9 +185,9 @@ function payloadOf(body: TransitionBody): CanonicalValue {
         ...common,
         command: {
           participantId: body.command.participantId,
-          turnId: body.command.turnId,
+          actionId: body.command.actionId,
           round: body.command.round,
-          turnIndexInRound: body.command.turnIndexInRound,
+          resolutionSequence: body.command.resolutionSequence,
           serverTime: body.command.serverTime,
           kind: body.command.kind,
           credits: body.command.credits,
@@ -193,12 +199,12 @@ function payloadOf(body: TransitionBody): CanonicalValue {
     case "SKIPPED":
       return {
         ...common,
-        turn: {
-          participantId: body.turn.participantId,
-          turnId: body.turn.turnId,
-          round: body.turn.round,
-          turnIndexInRound: body.turn.turnIndexInRound,
-          serverTime: body.turn.serverTime,
+        action: {
+          participantId: body.action.participantId,
+          actionId: body.action.actionId,
+          round: body.action.round,
+          resolutionSequence: body.action.resolutionSequence,
+          serverTime: body.action.serverTime,
         },
         skipReason: body.skipReason,
         creditsConsumed: body.creditsConsumed,
@@ -234,9 +240,12 @@ function seatIndex(state: GameStateV2, participantId: string): number {
   return index;
 }
 
-function requireFreeTurn(state: GameStateV2, turnId: string): void {
-  if (state.consumedTurnIds.includes(turnId)) {
-    throw new GameEngineError("TURN_ALREADY_CONSUMED", "Este turno já foi utilizado.");
+function requireFreeAction(state: GameStateV2, actionId: string): void {
+  if (state.consumedActionIds.includes(actionId)) {
+    throw new GameEngineError(
+      "ROUND_ACTION_ALREADY_CONSUMED",
+      "Esta ação da rodada já foi registrada.",
+    );
   }
 }
 
@@ -248,14 +257,27 @@ export interface GameEngineV2 {
   readonly version: typeof ENGINE_V2_VERSION;
   initialize(input: GameInitInput): GameStateV2;
   /** Decides what happens at the deadline for a participant who did not act (DECISION-03/04). */
-  planAbsentTurn(state: GameStateV2, participantId: string): AbsentTurnPlan;
+  planAbsentAction(state: GameStateV2, participantId: string): AbsentActionPlan;
+  /**
+   * Checks a manual submission against the current state WITHOUT applying it
+   * (cap, balance, STAY cost). The API calls it when the participant submits,
+   * so an invalid action is rejected inside the window and never reaches
+   * resolution (DECISION-16).
+   */
+  validateSubmission(state: GameStateV2, submission: SubmissionCheckInput): void;
+  /**
+   * Resolves ONE collective round: every participant gets exactly one outcome
+   * (manual, automatic or skipped) applied in the caller-supplied order
+   * (T-32 is TBD, so no order is assumed here).
+   */
+  resolveRound(state: GameStateV2, input: RoundInput): RoundResolution;
   /** Applies ONE command that moves the SORTE. Never mutates participants' positions. */
   applyMovement(
     state: GameStateV2,
     command: MovementCommandV2,
   ): TransitionResult<MovementTransition>;
   /** Records a skipped turn: consumes nothing, still hash-chained (BR-063). */
-  skipTurn(state: GameStateV2, input: SkipTurnInput): TransitionResult<SkipTransition>;
+  skipAction(state: GameStateV2, input: SkipActionInput): TransitionResult<SkipTransition>;
   /** Ends the match (no final lock, BR-067) and EXPIRES unused movements (BR-064). */
   complete(state: GameStateV2, input: CompleteInput): TransitionResult<CompleteTransition>;
   calculateWinners(state: GameStateV2): GameResultV2;
@@ -274,7 +296,7 @@ function initialize(input: GameInitInput): GameStateV2 {
   }
   const config: GameConfigV2 = {
     winningZoneSize: input.config.winningZoneSize,
-    maxMovementsPerTurn: input.config.maxMovementsPerTurn,
+    maxMovementsPerRound: input.config.maxMovementsPerRound,
   };
   return {
     engineVersion: ENGINE_V2_VERSION,
@@ -283,13 +305,13 @@ function initialize(input: GameInitInput): GameStateV2 {
     status: "RUNNING",
     sortePosition: input.initialSortePosition,
     seats,
-    consumedTurnIds: [],
+    consumedActionIds: [],
     sequence: 0,
     stateHash: genesisHash(config, seats, size, input),
   };
 }
 
-function planAbsentTurn(state: GameStateV2, participantId: string): AbsentTurnPlan {
+function planAbsentAction(state: GameStateV2, participantId: string): AbsentActionPlan {
   requireRunning(state);
   const seat = state.seats[seatIndex(state, participantId)] as SeatState;
   if (seat.movementBalance === 0) return { action: "SKIP", reason: "NO_MOVEMENTS_LEFT" };
@@ -297,15 +319,11 @@ function planAbsentTurn(state: GameStateV2, participantId: string): AbsentTurnPl
   return { action: "AUTOMATIC", kind: seat.autoAction, credits: 1 };
 }
 
-function applyMovement(
+function assertCommandAllowed(
   state: GameStateV2,
-  command: MovementCommandV2,
-): TransitionResult<MovementTransition> {
-  requireRunning(state);
-  const index = seatIndex(state, command.participantId);
-  const seat = state.seats[index] as SeatState;
-  requireFreeTurn(state, command.turnId);
-
+  seat: SeatState,
+  command: Pick<MovementCommandV2, "kind" | "credits" | "executionType">,
+): void {
   if (!DIRECTIONS.includes(command.kind)) {
     throw new GameEngineError("INVALID_CREDITS", "Direção de movimento inválida.");
   }
@@ -326,11 +344,11 @@ function applyMovement(
       );
     }
   } else {
-    const cap = state.config.maxMovementsPerTurn;
+    const cap = state.config.maxMovementsPerRound;
     if (cap !== null && command.credits > cap) {
       throw new GameEngineError(
-        "EXCEEDS_TURN_CAP",
-        `O limite por turno nesta campanha é de ${cap} movimentos.`,
+        "EXCEEDS_ROUND_CAP",
+        `O limite por rodada nesta campanha é de ${cap} movimentos.`,
       );
     }
   }
@@ -340,6 +358,18 @@ function applyMovement(
       "Você não tem movimentos suficientes para esta jogada.",
     );
   }
+}
+
+function applyMovement(
+  state: GameStateV2,
+  command: MovementCommandV2,
+): TransitionResult<MovementTransition> {
+  requireRunning(state);
+  const index = seatIndex(state, command.participantId);
+  const seat = state.seats[index] as SeatState;
+  requireFreeAction(state, command.actionId);
+
+  assertCommandAllowed(state, seat, command);
 
   const sorteAfter = displaceSorte(state.sortePosition, command.kind, command.credits, state.size);
   const remaining = seat.movementBalance - command.credits;
@@ -362,23 +392,23 @@ function applyMovement(
       ...state,
       sortePosition: sorteAfter,
       seats: withSeat(state, index, { ...seat, movementBalance: remaining }),
-      consumedTurnIds: [...state.consumedTurnIds, command.turnId],
+      consumedActionIds: [...state.consumedActionIds, command.actionId],
       sequence,
       stateHash: transition.currentStateHash,
     },
   };
 }
 
-function skipTurn(state: GameStateV2, input: SkipTurnInput): TransitionResult<SkipTransition> {
+function skipAction(state: GameStateV2, input: SkipActionInput): TransitionResult<SkipTransition> {
   requireRunning(state);
   const index = seatIndex(state, input.participantId);
   const seat = state.seats[index] as SeatState;
-  requireFreeTurn(state, input.turnId);
-  const plan = planAbsentTurn(state, input.participantId);
+  requireFreeAction(state, input.actionId);
+  const plan = planAbsentAction(state, input.participantId);
   if (plan.action !== "SKIP") {
     throw new GameEngineError(
       "SKIP_NOT_APPLICABLE",
-      "O participante tem uma ação automática configurada e movimentos disponíveis; a vez não pode ser pulada.",
+      "O participante tem uma ação automática configurada e movimentos disponíveis; a ação da rodada não pode ser pulada.",
     );
   }
   const sequence = state.sequence + 1;
@@ -390,11 +420,11 @@ function skipTurn(state: GameStateV2, input: SkipTurnInput): TransitionResult<Sk
     engineVersion: ENGINE_V2_VERSION,
     outcome: "SKIPPED",
     command: null,
-    turn: {
+    action: {
       participantId: input.participantId,
-      turnId: input.turnId,
+      actionId: input.actionId,
       round: input.round,
-      turnIndexInRound: input.turnIndexInRound,
+      resolutionSequence: input.resolutionSequence,
       serverTime: input.serverTime,
     },
     skipReason: plan.reason,
@@ -406,7 +436,7 @@ function skipTurn(state: GameStateV2, input: SkipTurnInput): TransitionResult<Sk
     transition,
     state: {
       ...state,
-      consumedTurnIds: [...state.consumedTurnIds, input.turnId],
+      consumedActionIds: [...state.consumedActionIds, input.actionId],
       sequence,
       stateHash: transition.currentStateHash,
     },
@@ -482,7 +512,7 @@ function replay(input: GameReplayInputV2): GameReplayOutputV2 {
         result = applyMovement(state, step.command);
         break;
       case "SKIP":
-        result = skipTurn(state, step.input);
+        result = skipAction(state, step.input);
         break;
       case "COMPLETE":
         result = complete(state, step.input);
@@ -539,13 +569,33 @@ export function describeSkipReasonPtBr(reason: SkipReason): string {
   }
 }
 
+function validateSubmission(state: GameStateV2, submission: SubmissionCheckInput): void {
+  requireRunning(state);
+  const seat = state.seats[seatIndex(state, submission.participantId)] as SeatState;
+  assertCommandAllowed(state, seat, {
+    kind: submission.kind,
+    credits: submission.credits,
+    executionType: "MANUAL",
+  });
+}
+
+function resolveRound(state: GameStateV2, input: RoundInput): RoundResolution {
+  return resolveRoundWith(
+    { planAbsentAction, applyMovement, skipAction, validateSubmission },
+    state,
+    input,
+  );
+}
+
 export function createGameEngineV2(): GameEngineV2 {
   return {
     version: ENGINE_V2_VERSION,
     initialize,
-    planAbsentTurn,
+    validateSubmission,
+    resolveRound,
+    planAbsentAction,
     applyMovement,
-    skipTurn,
+    skipAction,
     complete,
     calculateWinners,
     replay,

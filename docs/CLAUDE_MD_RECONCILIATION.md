@@ -139,3 +139,13 @@ Vetores: múltiplas contas, bots/sniping na seleção e nos turnos, replay de mo
 6. Decisão jurídica (T-21) antes de qualquer ativação de participação paga.
 
 **Não iniciar** novas funcionalidades de produto sobre o modelo obsoleto enquanto o Engine V2 e a migração estiverem abertos.
+
+---
+
+## Adendo — decisões do sócio de 2026-11-12 (DECISION-07..22)
+
+- `CLAUDE.md` atualizado: §0.4 (C-18 turnos sequenciais → janela coletiva; C-19 quadrantes), §5.1/5.2, §6.1 (CR-011/012/018/019/024/025), §6.2, novo §6.6, BR-071..088, §8 (contrato do engine), §9.4 (máquina da rodada), §13.2 (`game_rounds`, `round_actions`, `initial_sorte_records`), §26.4, §28, §43 (alerta de rodada), TASK-098..105, ADR-023/024, riscos R-21 (reenquadrado), R-22..R-24, registro de TBDs.
+- `confirmationOrder` → `entrySequence` (mantido, DECISION-08); `maxMovementsPerTurn` → `maxMovementsPerRound`.
+- TBDs resolvidos: T-03, T-09, T-13, T-15. Novos em aberto (não inventados): **T-32** ordem de resolução da rodada, **T-33** edição antes do fim da janela; **T-10** limiares de temperatura segue aberto. Total: 33 registrados, 10 resolvidos, 23 abertos.
+- Engine V2: resolução coletiva de rodada, fase de entrada, Sorte inicial e distância circular mínima implementados com 70 testes.
+- Quadrantes seguem no `board.ts` legado (TASK-103).

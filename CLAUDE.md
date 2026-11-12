@@ -63,6 +63,8 @@ The repository was built on the previous constitution. These divergences are **k
 | C-15 | `docs/slo/slos.md` says 99.5% / 1% 5xx; constitution targets 99.9% / 0.5% | `docs/slo/slos.md` | LOW |
 | C-16 | Pilot simulation script and tests encode the obsolete movement model | `scripts/pilot-simulation/run.ts`, `*.test.ts` | MEDIUM |
 | C-17 | Existing board/movement/temperature code may assume a bounded bar (clamped movement, linear distance); no `maxCreditsPerParticipant`; no skipped-turn semantics; `autoAction` without `NONE` (CONFIRMED by audit 2026-11-11: clamp in `movement.ts`/`sorte-progression.ts`, linear distance in `temperature.ts`, `ParticipationPackage`, 0-based positions, client-supplied `sequence`, `FINAL_LOCK` state; see `docs/LEGACY_AUDIT_ENGINE_V2.md`) | `packages/domain/src/game/{board,movement,temperature}.ts`, `participation-package.ts` | HIGH |
+| C-18 | Sequential per-participant turns (`turn`, `currentPlayerId`-style turn order, per-turn deadline) and a client-supplied `sequence`; the owner's DECISION-16 replaced them with a **collective round action window** | `advance-room-operations.use-case.ts`, `submit-movement-command.use-case.ts`, mobile `LiveGameScreen`, `api-contract/participations.ts`, `movement_command_logs.sequence` | CRITICAL |
+| C-19 | `BoardQuadrant` / `quadrants` still exist in the legacy board model; DECISION-13 sets `QUADRANTS = DISABLED` for the MVP | `packages/domain/src/game/board.ts`, `game-config.ts` | LOW |
 
 ---
 
@@ -143,18 +145,18 @@ Participant; merchant partner; PassaSorte operations; administrator; support; fi
 
 | Term (pt-BR) | Meaning |
 |---|---|
-| **Barra** (bar) | The single horizontal sequence of positions on which the game happens. Replaces the former 2D board/quadrants. |
+| **Barra** (bar) | The single circular sequence of positions 1..N on which the game happens; N is known only after entries close. Replaces the former 2D board/quadrants (disabled, DECISION-13). |
 | **Posição** (position) | One cell of the bar. Room-scoped. Exclusive: owned by exactly one participant. |
 | **Sorte** | The one global marker on the bar. The only mobile entity. Moved by participants' accepted movements. |
 | **Crédito** (credit) | In-game budget unit each participant splits between positions and movements. How credits relate to money is TBD (T-17). |
 | **Jogada / Movimento** (movement) | One unit of mobility bought with a credit; used to displace the Sorte. |
 | **Território** | The set of positions a participant owns (may be contiguous or scattered). |
 | **Período de entrada** | Phase in which participants join and declare *how many* positions and movements they want. |
-| **Fase de escolha de posições** | Phase after entries close in which positions are chosen, in confirmation order. |
-| **Ordem de confirmação** | Server-assigned sequence of confirmed participations; drives pick priority and turn order. |
-| **Rodada** (round) | One pass in which every participant gets a turn, in original confirmation order. |
-| **Turno** (turn) | A participant's time-limited opportunity to move the Sorte within a round. |
-| **Ação automática** | Pre-configured per-participant decision (LEFT / RIGHT / STAY) executed if the participant is absent at their turn. |
+| **Fase de escolha de posições** | Phase after entries close in which participants choose their exact positions, in entry order. |
+| **Ordem de entrada** (`entrySequence`) | Server-assigned sequence of confirmed participations; drives pick priority and is an auditable attribute of every action. |
+| **Rodada** (round) | One pass with a collective action window in which every participant may submit a decision; the server then resolves it. |
+| **Janela da rodada** (action window) | The configurable time (`roundActionWindowSeconds`) in which all participants may register their action for the round. |
+| **Ação automática** | Pre-configured per-participant decision (LEFT / RIGHT / STAY) executed if the participant is absent when the round window closes. |
 | **Zona vencedora** | The block of K contiguous positions (K ≥ 1, campaign-configured) derived from the Sorte's final position. |
 | **Temperatura** | Proximity feedback between a participant and the Sorte (Congelando · Frio · Morno · Quente · Muito quente). |
 | **Experiência** | The merchant's offer (product/service/voucher/event). |
@@ -186,20 +188,20 @@ Participant; merchant partner; PassaSorte operations; administrator; support; fi
 
 1. **Discover** — public catalog → campaign detail (experience, merchant, schedule, how it works, mandatory conditions). Recovery: retry / safe cached public data.
 2. **Sign up / Login / Recover** — managed identity (Supabase Auth); return the user to original intent; no user enumeration.
-3. **Enter a campaign (entry period)** — validate eligibility → choose the **credits split** (positions × movements) within campaign limits → (if applicable) pay → participation **CONFIRMED** and assigned a server-side `confirmationOrder`. **No specific position is chosen or held at this point (CR-010).**
+3. **Enter a campaign (entry period)** — validate eligibility → choose the **credits split** (positions × movements) within campaign limits → (if applicable) pay → participation **CONFIRMED** and assigned a server-side `entrySequence`. **No specific position is chosen or held at this point (CR-010).**
 4. **Configure automatic action** — participant pre-configures `autoAction` ∈ {LEFT, RIGHT, STAY, NONE} to be used if absent at a turn (CR-027, DECISION-03/04). `NONE` means the turn is skipped without consuming movement.
 5. **Entries close** — the bar size is now known: `N = Σ positions of all confirmed participations` (CR-004).
-6. **Position selection** — in `confirmationOrder`, each participant picks their positions (concentrated or scattered, CR-009). Absent participants receive server-chosen random positions (CR-012); this rule must appear in the terms (CR-013).
+6. **Position selection** — in `entrySequence` order (whoever entered first chooses first, DECISION-08), each participant chooses **exactly which positions** they want, concentrated or scattered (CR-009, DECISION-07). The last participant receives only what is left; the bar never grows (DECISION-11). No automatic selection while the participant is present; absent participants receive server-chosen random positions (CR-012), and this rule must appear in the terms (CR-013). The match starts only when **every position has an owner** (DECISION-09).
 7. **Game start** — the Sorte's initial position is generated server-side, randomly and auditably (CR-014/CR-015).
-8. **Rounds and turns** — in each round participants act in original order (CR-018). At their turn they may move the Sorte LEFT/RIGHT (and STAY where allowed) consuming ≥1 movement credits (CR-020..022). Each accepted action changes the shared Sorte state; the next participant receives the Sorte exactly where it was left (CR-024/CR-025). Rounds may be spread across hours and days (CR-017).
+8. **Rounds with a collective window** — each round opens an **action window** (`roundActionWindowSeconds`, configurable) in which **all participants** may submit their decision at the same time (DECISION-16/17). They may move the Sorte LEFT/RIGHT (and STAY) consuming ≥1 movement credits (CR-020..022). When the window closes the server resolves the round (absent participants follow DECISION-03/04), computes the new Sorte position and reveals it; per-participant detail is available in the audit/replay (DECISION-19/21). The Sorte may change a lot between rounds (DECISION-20). Rounds may be spread across hours and days (CR-017); campaign timing is configurable (DECISION-12).
 9. **Live monitoring** — participant sees own positions, the Sorte position and own temperature (CR-026). Closing the app does not pause the game; reopening rebuilds authoritative state.
 10. **Result** — the Sorte stops; the winning zone and winning participants are derived (CR-028..031); full replay is available (CR-033).
 11. **Fulfillment / benefits** — winner notification → eligibility → fulfillment tracking → merchant/PassaSorte action; benefits only if legally enabled.
 12. **Support, account deletion (LGPD), merchant onboarding, campaign creation/cancellation** — as in §5.3.
 
-## 5.2 Round/turn timing — TBD
+## 5.2 Round timing (DECISION-12, 16, 17, 18)
 
-Turn time windows of 5, 8 or 10 seconds were mentioned (EXAMPLE/open, T-03). The server owns all deadlines; the client countdown is presentation only.
+Each campaign configures its own timing (`entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, or an equivalent) and the length of the action window (`roundActionWindowSeconds`; 30 s, 1 min and 2 min were only examples). Nothing is hard-coded; templates (EXPRESS, CLASSIC, WEEKEND, SPECIAL_EVENT) are a future evolution. The server owns every deadline: a submission is accepted only while `serverTime < actionWindowClosesAt`; the client countdown is presentation only. When a window opens the app must get the participant's attention (push, in-app, sound, haptic, countdown, a clear change of state) without casino/bet aesthetics (DECISION-18).
 
 ## 5.3 Operational journeys (unchanged from previous constitution — still valid)
 
@@ -245,21 +247,21 @@ Source: `PassaSorte_Core_Regras_Consolidadas.pdf`. All `CR-xxx` below are **FACT
 | CR-008 | In the **10-credit model**, no category may exceed 8 credits. | EXAMPLE only. Superseded in part by DECISION-02/05 (single credit unit; per-campaign `maxCreditsPerParticipant`); per-category min/max remain configuration (T-08, narrowed) |
 | CR-009 | Positions may be concentrated or spread along the bar. | FACT |
 | CR-010 | **No advance reservation** of specific positions during entry. | FACT |
-| CR-011 | Confirmed entry/participation **order** determines position-pick priority. | FACT |
-| CR-012 | Absence during position pick → system allocates randomly. | FACT |
+| CR-011 | Confirmed entry/participation **order** determines position-pick priority. | FACT; reinforced by DECISION-08 (`entrySequence`: persisted, immutable, auditable, server timestamp, transactional) |
+| CR-012 | Absence during position pick → system allocates randomly. | FACT; applies **only** to absent participants (DECISION-07: no automatic selection while present) |
 | CR-013 | The automatic-allocation rule must appear in the terms. | FACT |
 | CR-014 | The Sorte's initial position is random. | FACT |
 | CR-015 | The initial placement must be auditable. | FACT |
 | CR-016 | The model allows up to 8 rounds when max movements is 8. | EXAMPLE-derived; round count TBD (T-09) |
 | CR-017 | Rounds may occur at different times and across more than one day. | FACT |
-| CR-018 | Within each round, participants act **sequentially** (original order). | FACT |
-| CR-019 | Each turn has a **limited time**. | FACT (5/8/10 s open, T-03) |
+| CR-018 | Within each round, participants act **sequentially** (original order). | **SUPERSEDED by DECISION-16 (2026-11-12):** all participants act inside one collective window; the order in which the server applies the actions is TBD (T-32) |
+| CR-019 | Each turn has a **limited time**. | **REVISED by DECISION-16/17:** each round has a limited **action window**, `roundActionWindowSeconds`, configurable per campaign (T-03 resolved) |
 | CR-020 | A participant may move the Sorte **left or right**. | FACT |
 | CR-021 | The mechanic includes **STAY** ("manter"). | FACT; STAY executed as an automatic action consumes 1 movement (DECISION-03); a manually executed STAY also costs 1 movement (ASSUMPTION, T-31a) |
 | CR-022 | A participant may consume **multiple movements in one turn**. | FACT |
-| CR-023 | Unused movements remain available **while the match rules allow**. | FACT; skipped turns consume nothing and movements stay usable in the same participation; at the end they **EXPIRE** — no cashback, refund, transfer or carry-over (DECISION-04). Per-turn cap: `maxMovementsPerTurn` (BR-068) |
-| CR-024 | Every move modifies a **global shared state**. | FACT |
-| CR-025 | The next participant receives the Sorte at the position resulting from the previous move. | FACT |
+| CR-023 | Unused movements remain available **while the match rules allow**. | FACT; skipped turns consume nothing and movements stay usable in the same participation; at the end they **EXPIRE** — no cashback, refund, transfer or carry-over (DECISION-04). Per-turn cap: `maxMovementsPerRound` (BR-068) |
+| CR-024 | Every move modifies a **global shared state**. | FACT; applied by the server at round resolution |
+| CR-025 | The next participant receives the Sorte at the position resulting from the previous move. | **REVISED by DECISION-16:** the state is shared per round; participants see the new Sorte position after the round resolves |
 | CR-026 | The participant follows the Sorte and their own positions. | FACT |
 | CR-027 | An absent participant may use a **previously configured automatic decision**. | FACT; if none is configured the turn is skipped without consuming movement (DECISION-04) |
 | CR-028 | The final result depends on where the Sorte ends. | FACT |
@@ -275,21 +277,25 @@ Source: `PassaSorte_Core_Regras_Consolidadas.pdf`. All `CR-xxx` below are **FACT
 
 **Credits & strategy.** There is a **single credit unit** (DECISION-02): `1 credit = 1 position OR 1 movement`, same cost for both. The decisive pre-game choice is how a participant splits the credits they buy between positions and movements (EXAMPLE: 10 credits → 8+2, 6+4, 5+5, 2+8). The monetary value of a credit is configuration (`creditUnitPrice`, integer minor units, per campaign) and is **separate from** `creditQuantity`; BRL figures in the examples are never constants. Each campaign sets `maxCreditsPerParticipant` (DECISION-05), enforced server-side. Per-category minimum/maximum (e.g. at least one position; the former "80%" example) and the number of rounds remain campaign configuration (T-08 narrowed, T-09).
 
-**Phases.** Entry period (declare counts) → entries close (N known) → position selection (confirmation order; absent → random) → Sorte initial placement → rounds/turns → end → result → audit. A participant cannot pick specific positions before entries close (CR-010).
+**Phases (DECISION-10).** Entry period (each participant declares positions + movements + autoAction; no bar exists yet) → entries close → `boardSize = Σ position credits` → position selection in `entrySequence` order → all positions owned (`allocatedPositions == boardSize`, `EMPTY_POSITIONS = 0`) → initial Sorte placement (random, server-side, auditable) → collective rounds → end → result → audit. A participant cannot pick specific positions before entries close (CR-010).
 
-**Turn order.** Pick priority and turn order both follow the original confirmation order (CR-011, CR-018). Each round repeats the same order.
+**Order.** `entrySequence` gives pick priority (CR-011, DECISION-08), which is a real benefit of entering early, and stays an auditable attribute of every action. It is **not** (yet) the order in which a round's actions are applied: `ROUND_RESOLUTION_ORDER` is TBD (T-32); `entrySequence` is only the PROPOSED candidate. With additive circular displacement the Sorte position at the end of a round is the same for any order; only the per-action before/after positions in the audit depend on it.
 
-**Movement.** At a turn the participant spends ≥1 movement credits to displace the Sorte LEFT (toward lower positions) or RIGHT (toward higher positions), or STAY. Each credit displaces the Sorte by **exactly one position** (owner's worked examples, DECISION-01). The bar is **circular** (`BAR_BOUNDARY_POLICY = CIRCULAR`): `N + RIGHT → 1` and `1 + LEFT → N`, in both directions; CLAMP, REJECT and BOUNCE/REVERSE_DIRECTION are forbidden. One command may spend several credits (e.g. RIGHT ×5). The state mutation is shared: the next participant starts where the Sorte was left. **EXAMPLE:** Sorte at 100; player 49 plays RIGHT ×3 → 103; player 50 starts seeing 103. **EXAMPLE (wrap):** bar of 200, Sorte at 198, RIGHT ×4 → 199, 200, 1, 2 → final position 2.
+**Movement.** At a turn the participant spends ≥1 movement credits to displace the Sorte LEFT (toward lower positions) or RIGHT (toward higher positions), or STAY. Each credit displaces the Sorte by **exactly one position** (owner's worked examples, DECISION-01). The bar is **circular** (`BAR_BOUNDARY_POLICY = CIRCULAR`): `N + RIGHT → 1` and `1 + LEFT → N`, in both directions; CLAMP, REJECT and BOUNCE/REVERSE_DIRECTION are forbidden. One command may spend several credits (e.g. RIGHT ×5). The state mutation is shared and applied by the server when the round is resolved (DECISION-16). **EXAMPLE:** Sorte at 100 at the start of a round; the round's submissions are RIGHT ×3 and LEFT ×1 → the Sorte is revealed at 102. **EXAMPLE (wrap):** bar of 200, Sorte at 198, RIGHT ×4 → 199, 200, 1, 2 → final position 2.
 
 **Rules adopted on 2026-11-11 as ASSUMPTIONS (authorized by the owner, revisable; §6.5):** the "final lock / final plan" does not exist (T-07) and the semantics grouped in T-31 are fixed (STAY cost, per-turn cap, no explicit pass, definition of "absent", zero-balance auto-action, auto-action = exactly 1 movement). No rule that blocked Engine V1 remains open.
 
-**Absence.** Two distinct absences exist and must never be conflated: (a) absence at **position pick** → server random allocation of free positions (not a move); (b) absence at **turn** (ASSUMPTION: no accepted player command by the server deadline, T-31) → if the participant has a configured `autoAction` (LEFT | RIGHT | STAY) it executes as a normal move, consumes **1 movement** and is recorded `executionType = AUTOMATIC`; if `autoAction = NONE` the turn is **skipped**, **no movement is consumed** and the participant is notified (DECISION-03/04).
+**Absence.** Two distinct absences exist and must never be conflated: (a) absence at **position pick** → server random allocation of free positions (not a move); (b) absence in a **round** (no accepted player action before `actionWindowClosesAt` on the server clock; DECISION-16, T-31d) → if the participant has a configured `autoAction` (LEFT | RIGHT | STAY) it executes as a normal move, consumes **1 movement** and is recorded `executionType = AUTOMATIC`; if `autoAction = NONE` the turn is **skipped**, **no movement is consumed** and the participant is notified (DECISION-03/04).
 
 **Result.** When rounds end the Sorte stops. **MVP: `winningZoneSize = 1`** (DECISION-06): the Sorte's final position *is* the winning position and its owner is the single winner; because every position is owned (see "Bar & positions"), exactly one winner always exists. The engine keeps `winningZoneSize` as configuration so K > 1 can be added later, but K > 1 is **not activatable** until the zone-expansion rule and the prize-split rule are formally defined (T-05, T-11 — future); the engine rejects K > 1 for real rooms. Do not invent the expansion rule.
 
-**Audit.** The record must contain: initial Sorte, order, every command by every participant, Sorte position after each action, final position, winning zone, winners, complete replay (CR-033).
+**Audit.** The record must contain: initial Sorte record (`gameId`, `boardSize`, `engineVersion`, `randomnessCommitment`, `initialLuckPosition`, `generatedAt`), `entrySequence`, and **for every participant in every round**: round number, window open/close, `actionSubmittedAt`, the action, manual/automatic, movements consumed, `resolutionSequence`, `luckPositionBefore`, `luckPositionAfter` (DECISION-21); final position, winning zone, winners, complete replay (CR-033). `resolutionSequence` only becomes definitive once T-32 is decided.
 
 **Temperature.** The core PDF only states intent (cold / approaching / hot, derived from proximity between the Sorte and the participant's territory) and leaves formula, number of levels, intervals and individual-vs-global scope **undefined (T-10)**. The Design System defines the five visual/semantic states **Congelando · Frio · Morno · Quente · Muito quente**; the mapping from distance to state is configuration. Because the bar is circular, **distance is circular distance**: `min(abs(a − b), N − abs(a − b))` (BR-014).
+
+**Temperature and quadrants (DECISION-13/14).** Quadrants are disabled in the MVP (`quadrantsEnabled = false`) and quadrant-based round scheduling is NOT NOW (DECISION-22). The temperature concept stays (FRIO / MORNO / QUENTE; the Design System keeps its five visual states) but its mapping is **TBD (T-10)**: the engine must not invent thresholds, and linear quadrants are wrong on a circular bar (on a bar of 60, position 55 is 10 away from position 5). When temperature is implemented the distance is `circularDistance`.
+
+**Why a collective window (DECISION-16/19/20).** A sequential playback of hundreds of participants would be slow, predictable and boring. The collective window keeps uncertainty and expectation: the Sorte can move a lot between rounds, so a participant who looks far away can become relevant again. This must emerge only from the legitimate rules, never from artificial manipulation. The UI may animate the processing aggregated (processing → Sorte moves → new position revealed); full detail lives in audit/replay.
 
 ## 6.3 Worked example (EXAMPLE, not rules)
 
@@ -297,7 +303,7 @@ Source: `PassaSorte_Core_Regras_Consolidadas.pdf`. All `CR-xxx` below are **FACT
 
 ## 6.4 Things the core does NOT say (do not invent)
 
-Participant movement; a player-owned-position translation; a final strategy lock; a 2D board or quadrants; a Sorte "zone width" before the end; price, credits-to-money ratio (a credit's monetary value is per-campaign configuration), prize value, minimum participants, universal round count, universal turn duration, the zone-expansion rule for K > 1, split formula, cashback rules.
+Participant movement; a player-owned-position translation; a final strategy lock; a 2D board or quadrants (disabled in the MVP, DECISION-13); the order in which a round's simultaneous actions are applied (T-32); temperature thresholds (T-10); whether a submitted action can be edited before the window closes (T-33); a Sorte "zone width" before the end; price, credits-to-money ratio (a credit's monetary value is per-campaign configuration), prize value, minimum participants, universal round count, universal turn duration, the zone-expansion rule for K > 1, split formula, cashback rules.
 
 ## 6.5 Owner decisions of 2026-11-11 (FACT)
 
@@ -314,15 +320,42 @@ Explicit product decisions; they override any earlier ASSUMPTION or TBD. The num
 
 **Assumptions adopted 2026-11-11 (T-07, T-31 — authorized by the owner, revisable):**
 
-- **No final lock (T-07).** The game ends at the last turn of the last round; the result is resolved right after. `FINAL_LOCK` / `LOCKED` and the final-plan code are removed (expand/contract). Turn order stays fixed in every round (CR-018); the resulting last-mover advantage is an accepted, known risk (R-21) to be simulated before the pilot.
+- **No final lock (T-07).** The game ends at the last round; the result is resolved right after. `FINAL_LOCK` / `LOCKED` and the final-plan code are removed (expand/contract). ~~Turn order stays fixed in every round~~ **Superseded by DECISION-16:** all participants act in one collective window, so nobody observes others before acting; the strategic-hoarding concern (R-21) remains and is to be simulated before the pilot.
 - **a — STAY.** A manually executed STAY consumes 1 movement, like an automatic STAY.
-- **b — Per-turn cap.** The engine supports `maxMovementsPerTurn` (campaign setting, applies to manual commands). **No default value:** creating a campaign requires an explicit number or an explicit "no limit" (`null`); the backoffice warns on `null`.
+- **b — Per-turn cap.** The engine supports `maxMovementsPerRound` (campaign setting, applies to manual commands). **No default value:** creating a campaign requires an explicit number or an explicit "no limit" (`null`); the backoffice warns on `null`.
 - **c — No explicit pass.** There is no "pass" command. Passing = not acting before the deadline, which makes the participant "absent" (the `autoAction` rule applies).
 - **d — Absent.** No accepted command by the server deadline, measured by the server clock. Behavior exactly at the deadline stays in T-03.
 - **e — Zero balance.** An auto action with zero movement balance is a skipped turn with reason `NO_MOVEMENTS_LEFT` (different participant message from `ABSENT_NO_AUTO_ACTION`).
-- **f — Auto action.** Always exactly 1 movement (one step), so it never exceeds `maxMovementsPerTurn`.
+- **f — Auto action.** Always exactly 1 movement (one step), so it never exceeds `maxMovementsPerRound`.
 - A skipped turn is recorded as a hash-chained transition; distance/temperature use circular distance.
 
+
+## 6.6 Owner decisions of 2026-11-12 (FACT)
+
+Explicit product decisions; the newest decision wins over earlier text. Numbers in the examples are **EXAMPLES, never constants**.
+
+| ID | Decision | Rule |
+|----|----------|------|
+| DECISION-07 | Exact choice of positions | The participant chooses exactly which positions to occupy (e.g. 7, 18, 42, 61 or 30, 31, 32, 33); concentrate or distribute is the participant's strategy. No automatic selection while the participant is present. |
+| DECISION-08 | Entry order = pick priority | Order of confirmed entry defines who chooses first. `entrySequence` is persisted, immutable once confirmed, auditable, from the **server** clock/counter (never the client's), assigned transactionally with no ties or duplicates. |
+| DECISION-09 | No empty positions | `boardSize = Σ positions acquired`; every position belongs to a participant; invariant `allocatedPositions == boardSize` and `EMPTY_POSITIONS = 0` when the match starts. |
+| DECISION-10 | Bar created after entries close | Flow: campaign opens → participants enter (positions + movements) → entry closes → sum of positions → `boardSize` → position selection in entry order → all positions owned → match ready. During entry there is no definitive bar, only each participation's composition. |
+| DECISION-11 | Last picker takes what is left | No extra positions, no bigger bar. Entering early gives more choice. ("Quem entra antes escolhe antes." is only an example of copy.) |
+| DECISION-12 | Configurable campaign timing | `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt` (or equivalent) per campaign; templates (EXPRESS, CLASSIC, WEEKEND, SPECIAL_EVENT) are a future evolution. Do not hard-code days or hours. |
+| DECISION-13 | No quadrants in the MVP | `QUADRANTS = DISABLED` (`quadrantsEnabled = false`). Do not model Q1..Q4 in Game Engine V1. |
+| DECISION-14 | Temperature: concept yes, formula TBD | FRIO / MORNO / QUENTE stay as UX concept and DS states; no thresholds invented; distance must be circular: `min(abs(a−b), N−abs(a−b))`. |
+| DECISION-15 | Random, auditable initial Sorte | Random + server-side + auditable; never by client, never by an administrator. Record `gameId, boardSize, engineVersion, randomnessCommitment, initialLuckPosition, generatedAt`; `1 ≤ initialLuckPosition ≤ boardSize`; commit/reveal stays valid. |
+| DECISION-16 | Collective round window | All participants may submit within the same window of the round (`ROUND_ACTION_WINDOW = OPEN`); the sequential per-player model is no longer the MVP's main model. |
+| DECISION-17 | Configurable window length | `roundActionWindowSeconds` per campaign or game configuration (30 s / 1 min / 2 min were examples). |
+| DECISION-18 | Strong round alert | Push, in-app, sound, haptics, countdown, clear state change ("Sua rodada começou. Você tem 60 segundos para decidir." is example copy); no casino/bet aesthetics. |
+| DECISION-19 | No slow playback | No animated sequential playback of hundreds of participants; aggregate visual, full detail in audit/replay. |
+| DECISION-20 | Sorte may jump between rounds | Desired product trait; must come only from legitimate rules, never artificial manipulation. |
+| DECISION-21 | Detailed audit per participant per round | Round, participant, `entrySequence`, movements, directions, execution type, timestamp, `luckPositionBefore/After`, `resolutionSequence` (§6.2 Audit). |
+| DECISION-22 | No quadrant-based rounds now | `QUADRANT_BASED_ROUND_SCHEDULING = NOT NOW`. |
+
+**Related rules stated with them:** one valid action per participant per round (unless product explicitly allows edits, T-33); idempotency by `participationId + roundId + idempotencyKey`; after `serverTime >= actionWindowClosesAt` no new action is accepted and the app's visual state is never trusted; offline participants follow DECISION-03/04 (`autoAction ≠ NONE` → automatic move; `NONE` → skip without consuming).
+
+**Open after these decisions (do not invent):** T-32 `ROUND_RESOLUTION_ORDER` (proposal: `entrySequence`, status PROPOSED); T-10 temperature thresholds (HOT/WARM/COLD or another model); T-33 `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE`.
 
 ---
 
@@ -381,13 +414,13 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-047 | Timestamps persisted in UTC; campaign IANA timezone stored. | ✔ |
 | BR-048 | pt-BR / BRL; user-facing text in Brazilian Portuguese. | ✔ FACT |
 | BR-049 ★ | **No specific position is reserved during entry** (CR-010). Entry declares *counts* only. | FACT |
-| BR-050 ★ | `confirmationOrder` is a server-assigned, unique, monotonic sequence per room, fixed at confirmation. It determines pick priority and turn order. | FACT (CR-011/018); tie-break mechanism ASSUMPTION |
+| BR-050 ★ | `entrySequence` is a server-assigned, unique, gapless, monotonic sequence per room, fixed at confirmation, from the server clock/counter (never the client's). It determines pick priority and is an auditable attribute of every action; it is **not** (yet) the round resolution order (T-32). | FACT (CR-011, DECISION-08) |
 | BR-051 ★ | A participant owns exactly the positions bought; Σ over confirmed participations defines N; entries must be closed before N is used. | FACT |
-| BR-052 ★ | Absent at turn with `autoAction ∈ {LEFT, RIGHT, STAY}` → the action executes as a normal move, consumes 1 movement and is recorded `executionType = AUTOMATIC` with the configured action and credit consumed. | FACT (DECISION-03) |
+| BR-052 ★ | Absent in a round with `autoAction ∈ {LEFT, RIGHT, STAY}` → the action executes as a normal move, consumes 1 movement and is recorded `executionType = AUTOMATIC` with the configured action and credit consumed. | FACT (DECISION-03) |
 | BR-053 ★ | Absent at position pick → server random allocation among free positions, derived from the committed randomness (auditable); rule stated in terms. | FACT |
 | BR-054 ★ | Initial Sorte position is generated server-side from committed randomness; no human input can influence it. | FACT |
 | BR-055 ★ | Every accepted action produces exactly one state transition recorded with previous/current state hash. | ASSUMPTION (integrity) |
-| BR-056 ★ | A turn can be consumed at most once; no action outside the participant's open turn or after its deadline is accepted. | FACT-derived |
+| BR-056 ★ | A participant has at most one accepted action per round; none is accepted outside the window or at/after `actionWindowClosesAt` (server clock). | FACT-derived (DECISION-16, supersedes the per-turn wording) |
 | BR-057 ★ | Movement consumption (n credits) is atomic and idempotent: a retry never consumes n−1 or n+1. | FACT-derived |
 | BR-058 ★ | Auto-action configuration is editable only until a defined cutoff (before the participant's first turn is **TBD**, ASSUMPTION: until the room starts) and is versioned in the audit trail. | ASSUMPTION |
 | BR-059 ★ | The game continues on the server regardless of client connectivity. | FACT (source: "a partida continua") |
@@ -398,10 +431,28 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-064 ★ | Unused movements EXPIRE when the participation ends. They never become cashback, refund, balance, transfer, nor carry over to another draw or campaign; movement credits are campaign-scoped. | FACT (DECISION-04) |
 | BR-065 ★ | Every executed or skipped turn is audited with `executionType` (MANUAL / AUTOMATIC), the configured `autoAction` (if any), the movement executed and the credits consumed. | FACT (DECISION-03) |
 | BR-066 ★ | MVP `winningZoneSize = 1`. The engine supports the parameter but rejects `winningZoneSize > 1` for real rooms until a rule is formally defined. | FACT (DECISION-06) |
-| BR-067 ★ | There is no final lock / final movement plan: the game ends at the last turn of the last round and the result is resolved right after. | ASSUMPTION (T-07, 2026-11-11) |
-| BR-068 ★ | `maxMovementsPerTurn` is a campaign setting for manual commands; a campaign needs an explicit number or an explicit `null` (no limit); there is no default value. | ASSUMPTION (T-31b) |
-| BR-069 ★ | There is no explicit pass command; not acting before the server deadline makes the participant absent (BR-052/BR-063). | ASSUMPTION (T-31c/d) |
+| BR-067 ★ | There is no final lock / final movement plan: the game ends at the last round and the result is resolved right after. | ASSUMPTION (T-07, 2026-11-11) |
+| BR-068 ★ | `maxMovementsPerRound` is a campaign setting for manual commands; a campaign needs an explicit number or an explicit `null` (no limit); there is no default value. | ASSUMPTION (T-31b) |
+| BR-069 ★ | There is no explicit pass command; not acting before the window closes makes the participant absent (BR-052/BR-063). The window closes at `serverTime >= actionWindowClosesAt` (DECISION-16). | ASSUMPTION (T-31c) + FACT (deadline) |
 | BR-070 ★ | A skipped turn carries a reason: `ABSENT_NO_AUTO_ACTION` or `NO_MOVEMENTS_LEFT`. An automatic action consumes exactly 1 movement; with zero balance it becomes `NO_MOVEMENTS_LEFT`. | ASSUMPTION (T-31e/f) |
+| BR-071 ★ | The participant chooses the exact positions to occupy; no automatic selection while present. Absent pickers → BR-053. | FACT (DECISION-07) |
+| BR-072 ★ | `entrySequence` is assigned in the confirming transaction from a per-room counter, persisted and immutable; tie or duplicate is impossible (`UNIQUE(room_id, entry_sequence)`). | FACT (DECISION-08) |
+| BR-073 ★ | The bar is created only after entries close: `boardSize = Σ position credits`. During entry there is no definitive bar. | FACT (DECISION-09/10) |
+| BR-074 ★ | Invariant: `allocatedPositions == boardSize` (`EMPTY_POSITIONS = 0`); a match cannot start otherwise. | FACT (DECISION-09) |
+| BR-075 ★ | The last picker receives exactly the remaining positions; the bar is never enlarged to compensate. | FACT (DECISION-11) |
+| BR-076 ★ | Campaign timing (`entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`) is configuration; no hard-coded durations. | FACT (DECISION-12) |
+| BR-077 ★ | `quadrantsEnabled = false` in the MVP; quadrant-based scheduling is NOT NOW. | FACT (DECISION-13/22) |
+| BR-078 ★ | Temperature distance is the minimum **circular** distance (BR-014); thresholds are TBD (T-10) and must not be invented. | FACT (DECISION-14) |
+| BR-079 ★ | The initial Sorte position is random, server-side, auditable, in `1..boardSize`, with the record `gameId, boardSize, engineVersion, randomnessCommitment, initialLuckPosition, generatedAt`; never client or administrator input. | FACT (DECISION-15) |
+| BR-080 ★ | Each round has a collective action window in which every participant may submit; the server resolves the round when it closes. | FACT (DECISION-16) |
+| BR-081 ★ | `roundActionWindowSeconds` is configuration (per campaign or game config), never a constant. | FACT (DECISION-17) |
+| BR-082 ★ | The app must strongly signal an open round (push, in-app, sound, haptics, countdown) without casino aesthetics. | FACT (DECISION-18) |
+| BR-083 ★ | Resolution is not shown as slow sequential per-player playback; detail is available through audit/replay. | FACT (DECISION-19) |
+| BR-084 ★ | Large Sorte jumps between rounds are legitimate; no artificial mechanism may be used to produce them. | FACT (DECISION-20) |
+| BR-085 ★ | Every round persists, per participant: `roundNumber`, `windowOpenAt/CloseAt`, `participationId`, `entrySequence`, `actionSubmittedAt`, action, automatic/manual, `movementsConsumed`, `resolutionSequence`, `luckPositionBefore/After`. | FACT (DECISION-21) |
+| BR-086 ★ | Round actions are idempotent: `participationId + roundId + idempotencyKey` never registers or consumes twice; deadlines use the server clock; retries and duplicates are tolerated. | FACT (DECISION-16 concurrency) |
+| BR-087 ★ | The order in which a round's actions are applied is `ROUND_RESOLUTION_ORDER` = **TBD (T-32)**; the engine takes it as an explicit input and records its policy id; `entrySequence` is only PROPOSED. | TBD |
+| BR-088 ★ | Whether a participant may change a submitted action before the window closes is `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE` = **TBD (T-33)**; until decided the engine accepts at most one action per participant per round. | TBD |
 
 ---
 
@@ -426,8 +477,17 @@ interface GameEngine {
   // Applies ONE command that moves the SORTE. Never mutates participant positions.
   applyMovement(state: GameState, command: MovementCommand): TransitionResult; // { state, transition }
 
-  // Records a skipped turn (absent, autoAction = NONE): consumes nothing, still hash-chained (BR-063).
-  skipTurn(state: GameState, turn: { participantId: string; turnId: string }): TransitionResult;
+  // Checks a manual submission against the state WITHOUT applying it (cap, balance, STAY cost);
+  // the API calls it at submission time, inside the window.
+  validateSubmission(state: GameState, submission: { participantId: string; kind: 'LEFT'|'RIGHT'|'STAY'; credits: number }): void;
+
+  // Resolves ONE collective round (DECISION-16): every participant gets exactly one outcome
+  // (manual / automatic / skipped), applied in the caller-supplied order (T-32 is TBD, no default).
+  // Returns the new state, the transitions, replay steps and one audit row per participant (DECISION-21).
+  resolveRound(state: GameState, round: RoundInput): RoundResolution;
+
+  // Records a skipped round action (absent, autoAction = NONE or zero balance): consumes nothing, still hash-chained (BR-063).
+  skipAction(state: GameState, action: { participantId: string; actionId: string }): TransitionResult;
 
   // Pure derivation of the winning zone and winners from a terminal state.
   calculateWinners(state: GameState): GameResult;
@@ -440,7 +500,7 @@ interface GameEngine {
 ```typescript
 type MovementCommand = {
   participantId: string;
-  turnId: string;                 // server-issued; one command per turn (BR-056)
+  actionId: string;               // server-issued; one per (round, participant) (BR-056)
   kind: 'LEFT' | 'RIGHT' | 'STAY';
   credits: number;                // ≥ 1; each credit = 1 position; STAY consumes 1 when executed (manual cost per BR-021)
   executionType: 'MANUAL' | 'AUTOMATIC';   // AUTOMATIC = the participant's configured autoAction executed while absent (DECISION-03)
@@ -448,7 +508,7 @@ type MovementCommand = {
 
 type Transition = {
   sequence: number;               // server-assigned, gapless
-  round: number; turnIndexInRound: number;
+  round: number; resolutionSequence: number;
   outcome: 'APPLIED' | 'SKIPPED';   // SKIPPED: absent with autoAction = NONE (BR-063)
   command: MovementCommand | null;  // null when SKIPPED
   serverTime: string;             // UTC, from server clock — never client
@@ -462,11 +522,18 @@ type Transition = {
 
 **Circular displacement (DECISION-01).** With positions 1..N, `delta = +credits` (RIGHT), `−credits` (LEFT), `0` (STAY) and `next = ((pos − 1 + delta) mod N + N) mod N + 1` (mathematical modulo). Golden cases for N = 200: 198 + RIGHT×1 → 199; ×2 → 200; ×3 → 1; ×4 → 2; ×5 → 3; 200 + RIGHT → 1; 1 + LEFT → 200. Moving N credits in one direction is a full lap (no net displacement).
 
+**Collective round, entry phase and initial Sorte (DECISION-07..21; implemented in `packages/domain/src/game/v2/`).**
+
+- `resolveRound(state, { roundId, roundNumber, windowOpensAt, windowClosesAt, resolutionStartedAt, submissions, resolutionOrder, resolutionOrderPolicy })`: submissions must be inside `[windowOpensAt, windowClosesAt)` on the server clock, at most one per participant; resolution cannot start before the window closes; `resolutionOrder` must contain every participant exactly once. `proposedEntrySequenceOrder()` exists but is **PROPOSED** (T-32) and is never applied implicitly.
+- Entry phase (`entry-phase.ts`): `computeBoardSize` (Σ position credits), `createPositionSelection`, `currentPicker` (entry order), `pickPositions` (exact positions, exclusive, exactly the purchased count), `autoAllocatePositions` (absent picker, deterministic from the sealed seed), `isSelectionComplete`, `toParticipantSeats` (refuses to build seats while any position is empty).
+- Initial Sorte (`randomness.ts`): `deriveInitialSortePosition(seed, N)` (uniform on 1..N; the uniform distribution is an ASSUMPTION, T-13) and `createInitialSorteRecord` (verifies the seed against the commitment and returns the DECISION-15 record). Independent derivation stream per purpose.
+- `minCircularDistance(positions, sorte, N)` implements BR-014; temperature thresholds are not implemented (T-10).
+
 State hashes use SHA-256 over a **canonical serialization** (stable key order, integers only, no floats, no locale). The chain links each transition to its predecessor; the genesis hash covers the config snapshot, seat list, commitment hash and bar size.
 
 ## 8.2 Configuration (nothing below is a magic number)
 
-`GameConfigSnapshot` (frozen per room, immutable after start — BR-024): engineVersion; `creditUnitPrice` (minor units) and `maxCreditsPerParticipant`; per-category min/max (T-08, remaining); rounds count/schedule (T-09); turn duration (T-03); `winningZoneSize` (**MVP = 1**; K > 1 rejected, DECISION-06); `BAR_BOUNDARY_POLICY = CIRCULAR` (**decided, DECISION-01; not configurable at MVP** — CLAMP/REJECT/BOUNCE do not exist); displacement = 1 position per movement credit (fixed per engine version); per-participant `autoAction` (LEFT | RIGHT | STAY | NONE) captured in the seat list; `maxMovementsPerTurn` (number or explicit `null`, BR-068); temperature bands (T-10); minimum/maximum participants (T-12).
+`GameConfigSnapshot` (frozen per room, immutable after start — BR-024): engineVersion; `creditUnitPrice` (minor units) and `maxCreditsPerParticipant`; per-category min/max (T-08, remaining); rounds count/schedule (T-09); turn duration (T-03); `winningZoneSize` (**MVP = 1**; K > 1 rejected, DECISION-06); `BAR_BOUNDARY_POLICY = CIRCULAR` (**decided, DECISION-01; not configurable at MVP** — CLAMP/REJECT/BOUNCE do not exist); displacement = 1 position per movement credit (fixed per engine version); per-participant `autoAction` (LEFT | RIGHT | STAY | NONE) captured in the seat list; `maxMovementsPerRound` (number or explicit `null`, BR-068); temperature bands (T-10); minimum/maximum participants (T-12).
 
 The engine accepts pluggable strategies behind explicit ids (`MovementResolutionStrategy`, `BoundaryPolicy`, `WinningZoneStrategy`). Strategies whose product rule is undecided are `*_SIMULATION_ONLY` and **must be impossible to select for a real room** (enforced by a runtime guard on the room's `ruleSetStatus`, not by convention).
 
@@ -489,6 +556,11 @@ an AUTOMATIC execution consumes exactly 1 movement and records the configured ac
 unused movements at COMPLETED are marked EXPIRED and can never be reused or converted
 creditQuantity per participant never exceeds maxCreditsPerParticipant
 winningZoneSize == 1 implies exactly one winning position and exactly one winner (every position is owned)
+allocatedPositions == boardSize before the match starts (EMPTY_POSITIONS = 0); boardSize == sum of acquired positions
+entrySequence is unique and gapless; position choice follows entrySequence; each picker gets exactly the purchased count
+initial Sorte is in 1..N and reproducible from the committed seed
+every participant has exactly one outcome per round; no action is accepted at or after the window close
+the end-of-round Sorte position does not depend on the resolution order (additive circular displacement); the audit does
 ```
 
 ## 8.4 Versioning
@@ -498,6 +570,8 @@ Any rule change creates a new `engineVersion`. Active rooms keep running on thei
 ## 8.5 Migration note
 
 The current `createGameEngineSimulationV1` (strategies `PLAYER_TRANSLATION_V1`, random-walk Sorte zone, inside-zone winners) is an **OBSOLETE prototype** (C-01, C-02, C-08, C-13). It stays only as a test fixture until Engine V2 replaces it; it must not be wired to production rooms. Existing board/movement/temperature code must also be audited for bounded-bar assumptions (clamping, linear distance): circular behavior is now mandatory (DECISION-01, C-17).
+
+**Status (2026-11-12).** Engine V2 (pure core, collective rounds, entry phase, initial Sorte) is implemented in `packages/domain/src/game/v2/` with 70 tests (golden, property and mutation-checked); it is exported as `gameV2` and **not yet wired to rooms** (see `docs/LEGACY_AUDIT_ENGINE_V2.md`).
 
 ---
 
@@ -519,29 +593,29 @@ DRAFT -> OPEN -> ENTRY_LOCKED -> POSITION_SELECTION -> READY -> RUNNING -> RESOL
 
 - `OPEN` — entry period: participants declare credit splits; no positions are reserved (CR-010). The **randomness commitment is published here** (before anyone can know N).
 - `ENTRY_LOCKED` — N is computed and frozen (`N = Σ positions`).
-- `POSITION_SELECTION` — sequential picks in `confirmationOrder`; absent pickers auto-allocated.
+- `POSITION_SELECTION` — sequential picks in `entrySequence`; absent pickers auto-allocated.
 - `READY` — all positions owned; initial Sorte placement derived and recorded; turn schedule generated.
-- `RUNNING` — rounds/turns execute.
+- `RUNNING` — collective rounds execute: window opens → participants submit → window closes → the engine resolves the round → the new Sorte position is revealed (DECISION-16).
 - `RESOLVING` → `COMPLETED` — result derived once (idempotent), seed revealed and verifiable.
 - `FINAL_LOCK` exists in the current enum/code and is **obsolete (T-07 resolved: no final lock)**; it is removed by the contract migration.
 
 ## 9.3 Participation (revised)
 
 ```text
-CREATED -> RESERVED -> AWAITING_REQUIREMENT -> CONFIRMED          (entry period; confirmationOrder assigned)
+CREATED -> RESERVED -> AWAITING_REQUIREMENT -> CONFIRMED          (entry period; entrySequence assigned)
 CONFIRMED -> POSITIONS_PENDING -> POSITIONS_ASSIGNED -> ACTIVE     (selection; ACTIVE when the game runs)
 ACTIVE -> RESOLVED -> WON | NOT_WON -> COMPLETED
 ```
 
 `LOCKED` belongs to the removed final-lock concept (T-07, resolved). There is deliberately no cancellation branch after `CONFIRMED` without an explicit refund/cancellation policy (T-16). At `RESOLVED`, unused movements are marked EXPIRED (BR-064).
 
-## 9.4 Turn (new)
+## 9.4 Round (replaces the sequential turn; DECISION-16)
 
 ```text
-SCHEDULED -> OPEN (deadline_at set by server) -> ACCEPTED | AUTO_APPLIED | SKIPPED -> CLOSED
+SCHEDULED -> WINDOW_OPEN -> WINDOW_CLOSED -> RESOLVING -> RESOLVED
 ```
 
-`ACCEPTED` = player command applied (`MANUAL`). `AUTO_APPLIED` = deadline passed, the participant is absent and the configured `autoAction` executed (consumes 1 movement, `AUTOMATIC`). `SKIPPED` = deadline passed, absent, `autoAction = NONE`: nothing consumed and the participant is notified. Exactly one terminal outcome per turn (unique constraint).
+`WINDOW_OPEN` (`actionWindowOpensAt`..`actionWindowClosesAt`, set by the server): every participant may register one action. At `WINDOW_CLOSED` (`serverTime >= actionWindowClosesAt`) nothing new is accepted. `RESOLVING` (`resolutionStartedAt`..`resolutionCompletedAt`): the engine produces exactly one outcome per participant — `MANUAL` action, `AUTOMATIC` action (absent, `autoAction ≠ NONE`, 1 movement) or `SKIPPED` (`NONE` or zero balance; nothing consumed; participant notified) — and the new Sorte position. Each participant's action is a `RoundAction` with `UNIQUE(round_id, participation_id)`.
 
 ## 9.5 Payment · Benefit · Fulfillment (unchanged; LEGAL GATE where applicable)
 
@@ -564,9 +638,9 @@ Partner:        Merchant, MerchantLocation
 Catalog:        Experience
 Campaign:       Campaign (frozen experience snapshot)
 Game:           GameRoom, GameConfigSnapshot, RandomnessCommitment, RandomnessReveal,
-                BarPosition, Turn, MovementCommand, GameTransition (hash-chained),
+                BarPosition, GameRound, RoundAction, GameTransition (hash-chained),
                 GameResult, WinningZone, Winner
-Participation:  Participation (credit split, confirmationOrder), PositionAssignment,
+Participation:  Participation (credit split, entrySequence), PositionAssignment,
                 AutoActionConfig
 Commerce:       Order, Payment, Refund, PaymentWebhookEvent        (LEGAL GATE)
 Benefits:       BenefitAccount, BenefitLedgerEntry, BenefitRedemption (LEGAL GATE)
@@ -575,7 +649,7 @@ Platform:       Notification, NotificationPreference, SupportCase, AuditLog,
                 OutboxEvent, IdempotencyRecord, FeatureFlag, ComplianceApproval
 ```
 
-Removed/obsolete concepts: `PositionHold` at entry, `FinalMovementPlan` (T-07, removed), `BoardQuadrant`, `SorteZone` as a moving entity.
+Removed/obsolete concepts: `PositionHold` at entry, `FinalMovementPlan` (T-07, removed), `BoardQuadrant` (disabled, DECISION-13), `SorteZone` as a moving entity, sequential `Turn` (replaced by `GameRound`/`RoundAction`).
 
 ## 10.2 ER overview
 
@@ -702,15 +776,19 @@ PostgreSQL is the **source of truth** (ADR-004). UUID public IDs (UUIDv7 preferr
 ## 13.2 Target model for the reconciled game (ASSUMPTION — see ADR-022/023/024/025)
 
 ```text
-participations        + positions_bought, movements_bought (credit split), confirmation_order (unique per room),
+participations        + positions_bought, movements_bought (credit split), entry_sequence (unique per room),
                         auto_action (LEFT|RIGHT|STAY|null), status
 bar_positions         (room_id, position_no)  PK/unique;  participation_id NULL until assigned;
                         UNIQUE(room_id, position_no); position never reassigned once set (trigger)
-turns                 (id, room_id, round_no, order_in_round, participation_id, opens_at, deadline_at,
-                        status, outcome)  UNIQUE(room_id, round_no, order_in_round)
-movement_commands     (id, turn_id UNIQUE, kind, credits, source PLAYER|AUTO, auto_reason, server_time)
-                        append-only
-game_transitions      (room_id, sequence gapless, command_id, sorte_before, sorte_after,
+game_rounds           (id, room_id, round_no, action_window_opens_at, action_window_closes_at,
+                        resolution_started_at, resolution_completed_at, status,
+                        resolution_order_policy)  UNIQUE(room_id, round_no)
+round_actions         (id, round_id, participation_id, kind, credits, execution_type MANUAL|AUTOMATIC,
+                        submitted_at, resolution_sequence, outcome APPLIED|SKIPPED, skip_reason,
+                        idempotency_key)  UNIQUE(round_id, participation_id); append-only
+initial_sorte_records (room_id UNIQUE, board_size, engine_version, randomness_commitment_hash,
+                        initial_luck_position, generated_at)  immutable
+game_transitions      (room_id, sequence gapless, round_action_id, sorte_before, sorte_after,
                         previous_state_hash, current_state_hash, engine_version, server_time)
                         append-only, UNIQUE(room_id, sequence), UNIQUE(room_id, previous_state_hash)
 randomness_commitments(room_id UNIQUE, commitment_hash, committed_at, kms_key_ref, wrapped_seed)
@@ -722,7 +800,7 @@ idempotency_records   (scope=(user_id, route, key) UNIQUE, request_hash, respons
 
 ## 13.3 Mandatory DB-level protections
 
-- `UNIQUE(room_id, position_no)` and `UNIQUE(room_id, confirmation_order)`.
+- `UNIQUE(room_id, position_no)` and `UNIQUE(room_id, entry_sequence)`.
 - `CHECK (movements_used <= movements_bought)` and `CHECK (movements_used >= 0)`.
 - Append-only guarantees for `movement_commands`, `game_transitions`, `game_results`, `winners`, `audit_logs`, ledger tables: revoke `UPDATE/DELETE` from the application role and add a trigger that raises on `UPDATE/DELETE` (protects against a compromised app role and mistakes; ADMIN cannot rewrite history).
 - Monetary columns are integers in minor units.
@@ -758,12 +836,12 @@ Categories: `DomainError`(422) · `ValidationError`(400) · `AuthorizationError`
 
 ```text
 POST /rooms/{id}/participations                  declare credit split (idempotent; enforces maxCreditsPerParticipant, over-limit → rejected in full); returns participation
-POST /participations/{id}/confirm                (after requirement) -> confirmationOrder assigned by server
+POST /participations/{id}/confirm                (after requirement) -> entrySequence assigned by server
 PUT  /participations/{id}/auto-action            LEFT|RIGHT|STAY|NONE (versioned, audited)
 GET  /rooms/{id}/selection                       selection state: whose pick it is, deadline (server time), free positions (own view)
 POST /rooms/{id}/picks                           pick positions in my pick window (idempotent, atomic)
 GET  /rooms/{id}/state                           authoritative snapshot: Sorte, my positions, my temperature, phase, my turn/deadline
-POST /turns/{turnId}/movement                    {kind, credits}; idempotent; server decides validity/time
+POST /rounds/{roundId}/actions                    {kind, credits}; idempotent (participationId+roundId+Idempotency-Key); server decides validity/time (window closes at serverTime >= actionWindowClosesAt)
 GET  /rooms/{id}/events                          SSE stream (state invalidation), see §15
 GET  /rooms/{id}/replay                          after COMPLETED: history + verification material (role-gated / public per policy)
 ```
@@ -774,7 +852,7 @@ Backoffice: merchants, experiences, campaigns, rooms, users, roles (to be built)
 
 validation (Zod) · authentication where needed · authorization (server RBAC + ownership/IDOR check) · rate limit (global via `@fastify/rate-limit` + stricter per-route for game commands) · request size limits · error sanitization · observability · `requestId`/`correlationId` · idempotency for mutations · analytics event (non-blocking).
 
-**Never accept from the client:** Sorte position, positions owned, remaining movements, result, winner, price, balance, payment status, time, turn order, sequence, round, role.
+**Never accept from the client:** Sorte position, positions owned, remaining movements, result, winner, price, balance, payment status, time, round order, sequence, round, role.
 
 ---
 
@@ -835,7 +913,7 @@ Controls: TLS everywhere (NFR-007); Helmet; CORS deny-by-default with allow-list
 | **Authentication** | credential stuffing, token theft → managed IdP, MFA, rate limit | forged JWT → JWKS verify | no audit of logins → audit privileged | enumeration → uniform responses | login floods → rate limit | role escalation → server-side roles |
 | **Participation / credit split** | fake client | client-supplied split exceeds limits → server validates against config | dispute → audit | leaking others' splits → private | spam entries → rate limit, risk score | — |
 | **Position selection** | impersonating a picker → authN+ownership | two clients take same position → unique constraint + tx | "I didn't pick that" → audited picks | reading others' picks early → hide until rules allow | snipe/bot floods → rate limit, pick-window control | picking out of turn → turn check |
-| **Movements** | replay old request → idempotency, turnId, deadline, nonce | modify credits/direction/sequence → server-owned | deny a move → hash-chained transitions | infer others' state → private views | spam commands → one-per-turn, limits | acting for another → ownership |
+| **Movements** | replay old request → idempotency, roundId, window close, nonce | modify credits/direction/sequence → server-owned | deny a move → hash-chained transitions | infer others' state → private views | spam commands → one-per-turn, limits | acting for another → ownership |
 | **Game Engine / result** | — | admin edits Sorte/seed/result → append-only + hash chain + KMS | disputes → replay | seed leak before reveal → KMS, no logging | worker stampede → locks, idempotent jobs | ADMIN rewrite → forbidden by DB |
 | **Payments (gated)** | fake webhook → signature | amount tampering → server prices | chargeback → ledger | PAN storage → never | webhook flood | frontend "success" ≠ capture |
 | **Benefits (gated)** | QR screenshot reuse | arbitrary balance → ledger only | double redemption → single-use token | — | — | merchant forging redemptions |
@@ -859,7 +937,7 @@ Principle: **prefer provider-native fraud tooling first (payment gateway, identi
 
 ## 20.3 Replay attacks
 
-A user must not repeat an old movement request. Required on every game command: **`Idempotency-Key`, `turnId`, server-owned `sequenceNumber`, server `deadline`, and a request `nonce`/timestamp window**. A replay returns the **original recorded response** (never a second effect, never a "you already did it" ambiguity).
+A user must not repeat an old movement request. Required on every game command: **`Idempotency-Key`, `roundId`, server-owned `sequenceNumber`, server `deadline`, and a request `nonce`/timestamp window**. A replay returns the **original recorded response** (never a second effect, never a "you already did it" ambiguity).
 
 ## 20.4 Fake clients
 
@@ -907,12 +985,12 @@ Provider is **TBD (T-20)** and sits behind a `PaymentGateway` port. Flags `ENABL
 
 ```text
 Order -> Payment Intent -> Gateway -> signed Webhook -> Backend
-      -> Payment Captured -> Participation Confirmed (confirmationOrder assigned)
+      -> Payment Captured -> Participation Confirmed (entrySequence assigned)
 ```
 
 - Frontend never confirms payment. Webhooks: signed, timestamp-validated, replay-protected, persisted, idempotent per provider event id, reconcilable. Reconciliation job detects provider/internal divergence.
 - Money = integer minor units (BRL centavos). Never floats.
-- **Confirmation order** (pick priority/turn order) should be assigned when the participation becomes CONFIRMED on the server, not from client or gateway clocks (BR-050; T-15 tie-break).
+- **Confirmation order** (pick priority; round resolution order is TBD, T-32) should be assigned when the participation becomes CONFIRMED on the server, not from client or gateway clocks (BR-050; T-15 tie-break).
 - Prize/split/commission formulas: **TBD** (T-11, T-17, T-18). Do not invent.
 
 ---
@@ -978,7 +1056,7 @@ The project has real race-condition risk. **The database is the final guard**; a
 
 ## 26.1 Entry / confirmation
 
-`confirmationOrder` is allocated inside the confirming transaction from a per-room monotonic counter (row lock on the room or `UPDATE rooms SET next_order = next_order + 1 ... RETURNING`), protected by `UNIQUE(room_id, confirmation_order)`. Two confirmations can never share an order. Retrying a confirmation is idempotent.
+`entrySequence` is allocated inside the confirming transaction from a per-room monotonic counter (row lock on the room or `UPDATE rooms SET next_order = next_order + 1 ... RETURNING`), protected by `UNIQUE(room_id, entry_sequence)`. Two confirmations can never share an order. Retrying a confirmation is idempotent.
 
 ## 26.2 Entry lock → bar formation
 
@@ -988,23 +1066,26 @@ The project has real race-condition risk. **The database is the final guard**; a
 
 Two people must not acquire the same position. Use a transaction + `UNIQUE(room_id, position_no)` on assignment (`UPDATE bar_positions SET participation_id = $p WHERE room_id=$r AND position_no = ANY($ps) AND participation_id IS NULL` and assert the affected row count equals the requested count) + the pick-turn check (`it is $p's pick window`). **Concurrency test: 100 users attempt the same position → exactly 1 wins.** The existing SERIALIZABLE + unique-constraint hold repository demonstrates the pattern but is replaced by this model.
 
-## 26.4 Turns
+## 26.4 Round actions (collective window)
 
-A participant may not act: outside their turn; after the deadline; after the round advanced; more times than their balance allows. Enforcement is inside one transaction that **locks the room row** (`SELECT ... FOR UPDATE` or `pg_advisory_xact_lock(hash(room_id))`) because the Sorte is a single shared value — turns are inherently serial per room, so per-room serialization costs nothing.
+Thousands of participants may submit inside the same window and around its close. A participant may not act: outside the window; at/after `actionWindowClosesAt` (server clock); more than once per round (until T-33 is decided); with more credits than their balance or `maxMovementsPerRound` allows. Submissions are cheap (validate + insert); the **resolution** is the serial part: one transaction per room that locks the room row (`SELECT ... FOR UPDATE` or `pg_advisory_xact_lock(hash(room_id))`) because the Sorte is a single shared value.
 
 ```text
-BEGIN
-  lock room
-  load turn FOR UPDATE; assert status=OPEN and now() <= deadline and turn.participation = caller
-  assert creditsRemaining >= credits   -- via guarded UPDATE: SET used = used + :n WHERE used + :n <= bought
-  engine.applyMovement(state, command) -> transition (hash chained)
-  INSERT movement_command (turn_id UNIQUE)   -- second attempt violates UNIQUE
-  INSERT game_transition (sequence = last+1, previous_hash = last.hash)
-  UPDATE turn status; INSERT outbox events
-COMMIT
+SUBMIT (many in parallel, no room lock):
+  assert window OPEN and now() < closes_at      -- server clock
+  engine.validateSubmission(state, submission)   -- cap, balance, STAY cost
+  INSERT round_action UNIQUE(round_id, participation_id)  -- 2nd attempt violates UNIQUE
+  idempotency: (participation_id, round_id, idempotency_key) replays the original response
+
+RESOLVE (one worker wins the compare-and-swap WINDOW_CLOSED -> RESOLVING):
+  BEGIN; lock room
+    load actions; engine.resolveRound(state, input) -> transitions + audit rows
+    guarded balance UPDATE: SET used = used + :n WHERE used + :n <= bought
+    INSERT game_transitions (sequence = last+1, previous_hash = last.hash); INSERT outbox events
+  COMMIT
 ```
 
-Current code violates this (read–modify–write, absolute `used_count`, separate non-transactional calls) — C-12.
+Current code violates this (read–modify–write, absolute `used_count`, separate non-transactional calls, client-supplied `sequence`) — C-12, C-18.
 
 ## 26.5 Jobs
 
@@ -1035,22 +1116,22 @@ Current `PrismaIdempotencyRepository` is a global unscoped key set that returns 
 # 28. Background Jobs
 
 ```text
-expire_pick_windows        advance_turn_deadlines (apply AUTO action at deadline)
+expire_pick_windows        open_round_window   close_round_window   resolve_round (AUTO / skip for absent)
 open_scheduled_campaigns   close_campaign_entries   lock_room_entries
 generate_bar_positions     allocate_absent_picks    place_initial_sorte
-schedule_turns / open_round   resolve_game   publish_game_result   reveal_seed
+schedule_rounds   resolve_game   publish_game_result   reveal_seed
 send_notifications         process_outbox_event     process_payment_webhook
 reconcile_payments         expire_benefits          detect_stuck_rooms
 verify_sample_replays      generate_campaign_metrics   cleanup_expired_tokens
 ```
 
-Properties: idempotent; timeout-bounded; retried with exponential backoff + jitter; DLQ; `ENABLE_GAME_AUTO_ADVANCE` kill switch gates progression; turn-deadline execution targets **99% within 5 s** of the scheduled instant (NFR-022). Current worker is a single-process poller (`WORKER_POLL_INTERVAL_MS`); adequate for pilot, but 5–10 s turn windows need a timer/queue with sub-second precision (Cloud Tasks scheduling or a DB-driven `deadline_at <= now()` poll with `SKIP LOCKED`) — evaluate before enabling short windows.
+Properties: idempotent; timeout-bounded; retried with exponential backoff + jitter; DLQ; `ENABLE_GAME_AUTO_ADVANCE` kill switch gates progression; round-window close/resolve execution targets **99% within 5 s** of the scheduled instant (NFR-022). Current worker is a single-process poller (`WORKER_POLL_INTERVAL_MS`); adequate for pilot, but 5–10 s turn windows need a timer/queue with sub-second precision (Cloud Tasks scheduling or a DB-driven `deadline_at <= now()` poll with `SKIP LOCKED`) — evaluate before enabling short windows.
 
 ---
 
 # 29. Notifications
 
-`Domain event → Transactional Outbox → Queue → Notification worker → Provider`. MVP channels: in-app, push, email; future WhatsApp/SMS. Providers TBD (T-24) — the registry is intentionally empty. Notable events: participation confirmed, **your pick window opens**, positions auto-allocated, game started, **your turn is near / open**, auto-action used, round advanced, **Sorte is close (temperature change)** (opt-in), result, winner, fulfillment, benefit, cancellation/refund. Notification failure must never corrupt game state. Copy must follow the tone of voice (§42) — informative, never pressuring.
+`Domain event → Transactional Outbox → Queue → Notification worker → Provider`. MVP channels: in-app, push, email; future WhatsApp/SMS. Providers TBD (T-24) — the registry is intentionally empty. Notable events: participation confirmed, **your pick window opens**, **your round started (strong alert, DECISION-18)**, round result revealed, positions auto-allocated, game started, **your turn is near / open**, auto-action used, round advanced, **Sorte is close (temperature change)** (opt-in), result, winner, fulfillment, benefit, cancellation/refund. Notification failure must never corrupt game state. Copy must follow the tone of voice (§42) — informative, never pressuring.
 
 ---
 
@@ -1216,7 +1297,7 @@ Every schema change is versioned (Prisma migrations; Supabase MCP `apply_migrati
 
 Use **expand → migrate → contract** for sensitive changes and avoid rollback that depends on destructive down-migrations. The reconciliation requires such a sequence for the game tables:
 
-1. **Expand:** add `participations.positions_bought/movements_bought/confirmation_order/auto_action`, `bar_positions`, `turns`, `movement_commands`, `game_transitions`, `randomness_commitments/reveals`, scoped `idempotency_records`, append-only triggers; new `engine_version` for V2. Old tables untouched.
+1. **Expand:** add `participations.positions_bought/movements_bought/entry_sequence/auto_action`, `bar_positions`, `turns`, `movement_commands`, `game_transitions`, `randomness_commitments/reveals`, scoped `idempotency_records`, append-only triggers; new `engine_version` for V2. Old tables untouched.
 2. **Migrate:** new rooms use the V2 flow behind `ruleSetStatus`; legacy rooms (test data only — none real) are completed/cancelled or left on the legacy engine.
 3. **Contract:** drop `position_holds`, `movement_command_logs`, `game_runs.seed`, `participations.positions int[]` / `final_movement_plan` once nothing reads them; remove `FINAL_LOCK`/`LOCKED` (T-07 resolved) once nothing reads them.
 
@@ -1273,8 +1354,9 @@ The user must feel **"I am taking part in an experience"**, not "I am betting". 
 - **Never**: monetary scoreboards, multipliers, odds, jackpot counters, chips, roulette/cards, flying money, piles of notes, euphoric-wealth imagery.
 - **Credit split screen** ("Território × Mobilidade"): make the trade-off explicit — N positions = more territory; M movements = more power over the Sorte; show only valid combinations from campaign config (no hard-coded 80%).
 - **Irreversible actions** (confirm participation, submit a movement) are explicit, with a clear consequence summary; no undo.
-- **Position selection**: show whose pick it is and the **server deadline**; absent picker consequences are visible in the terms (CR-013).
-- **Live game**: the bar is the hero; the Sorte is a luminous marker; own territory highlighted; own temperature with text label; last accepted action and next turn time shown. The turn card gives one-tap preconfigured actions plus a multi-credit stepper.
+- **Round alert**: when a window opens, call the participant's attention (push, in-app, sound, haptic, countdown, clear state change; DECISION-18) — urgency without casino aesthetics.
+- **Position selection**: the participant chooses **exact positions** (DECISION-07); show whose pick it is, the number of positions to choose, the positions still free and the **server deadline**; communicate that entering earlier gives more choice (DECISION-11); absent picker consequences are visible in the terms (CR-013).
+- **Live game**: the bar is the hero; the Sorte is a luminous marker; own territory highlighted; own temperature with text label; round countdown and the last revealed Sorte position shown. The round card gives one-tap preconfigured actions plus a multi-credit stepper; resolution is shown aggregated (processing → Sorte moves → new position revealed), never as a slow per-player playback (DECISION-19).
 - **Animations/haptics** celebrate but must **never represent a state different from the authoritative server state**; if the server rejects a move, the UI reverts honestly.
 - **Information asymmetry** is part of the design: a participant sees precisely their own state, limited information about others (BR-018/019).
 - **Recovery**: closing the app never pauses the game; on return the app rebuilds from `GET /state`; offline-safe error states.
@@ -1361,12 +1443,12 @@ Not started / gated: TASK-052..056 (payment provider, integration, webhooks, rec
 TASK-071 Engine V2 contract (initialize/applyMovement/calculateWinners/replay) + canonical state hashing
 TASK-072 Dynamic bar: N = Σ positions; entry lock transaction; bar_positions
 TASK-073 Credit-split configuration & validation (replace participation packages)
-TASK-074 Confirmation order allocation (monotonic, unique, transactional)
-TASK-075 Position-selection phase: domain, API, DB, pick windows, SSE/polling state
-TASK-076 Absent-pick random allocation from committed randomness
+TASK-074 Entry sequence allocation (monotonic, unique, transactional; DECISION-08). Pure validation DONE in `gameV2.assertValidEntries`
+TASK-075 Position-selection phase: API, DB, pick windows, SSE/polling state (exact positions, DECISION-07). Pure domain DONE (`gameV2.pickPositions`, `currentPicker`, `toParticipantSeats`)
+TASK-076 Absent-pick random allocation from committed randomness. Pure function DONE (`gameV2.autoAllocatePositions`); persistence pending
 TASK-077 Randomness custody: commit at OPEN, KMS-sealed seed, reveal after COMPLETED, verification endpoint
-TASK-078 Turn model: schema, scheduler, deadlines, AUTO action (DECISION-03/04: AUTOMATIC executes, NONE skips)
-TASK-079 Movement command v2: atomic credit spend, scoped idempotency with response replay, one command per turn
+TASK-078 Round model: `game_rounds`/`round_actions` schema, scheduler (open/close/resolve window), AUTO action (DECISION-03/04). Pure `resolveRound` DONE
+TASK-079 Movement command v2: atomic credit spend, scoped idempotency with response replay, one action per participant per round (DECISION-16)
 TASK-080 Hash-chained game_transitions + DB append-only triggers + revoke UPDATE/DELETE
 TASK-081 Replay engine, golden fixtures, nightly replay verifier + alert
 TASK-082 Winner resolution: MVP `winningZoneSize = 1` (final Sorte position → owner); K > 1 rejected until the expansion rule exists
@@ -1385,6 +1467,14 @@ TASK-094 Credit configuration: single credit unit, creditQuantity vs creditUnitP
 TASK-095 autoAction LEFT|RIGHT|STAY|NONE: configuration API, AUTOMATIC execution (1 movement), SKIPPED turns, pt-BR skip notification (G-06, G-07)
 TASK-096 Movement expiry at participation end; no ledger/cashback/transfer/carry-over (G-08)
 TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
+TASK-098 Entry phase persistence: `entry_sequence` counter, entry lock transaction, `boardSize = Σ positions` (DECISION-08/09/10)
+TASK-099 Initial Sorte: persist `initial_sorte_records`; derive from the sealed seed at match start (DECISION-15). Pure `createInitialSorteRecord` DONE
+TASK-100 Round window UX: strong alert (push, in-app, sound, haptic, countdown), aggregated resolution animation (DECISION-18/19)
+TASK-101 Round audit viewer/replay: per-participant per-round rows (DECISION-21)
+TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, `roundActionWindowSeconds` (DECISION-12/17)
+TASK-103 Remove quadrants from the legacy board model and config (DECISION-13)
+TASK-104 Temperature mapping from circular distance — BLOCKED by T-10 (thresholds)
+TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission` (BR-086)
 ```
 
 ---
@@ -1420,8 +1510,8 @@ TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
 | ADR | Topic |
 |---|---|
 | 022 | **Sorte-moves model & GameEngine V2 contract** (supersedes 018; amends 011; retires `PLAYER_TRANSLATION_V1`; records circular bar, single credit unit, auto-action/skip semantics, `winningZoneSize = 1`) |
-| 023 | **Entry → lock → selection phases & dynamic bar** (no entry-time holds; supersedes the hold design) |
-| 024 | **Turn & clock model** (server deadlines, AUTO action, one command per turn, skip semantics, scheduler precision) |
+| 023 | **Entry → lock → exact-position selection & dynamic bar** (no entry-time holds; `entrySequence` priority; no empty positions; supersedes the hold design) |
+| 024 | **Collective round window & clock model** (server-closed action window, AUTO action, one action per participant per round, skip semantics, scheduler precision; replaces the sequential turn model) |
 | 025 | **Randomness custody & state-hash chain** (KMS envelope, commit before N, reveal after, append-only enforcement; amends 012) |
 | 026 | **Fraud & abuse prevention architecture** (signals, graduated response, LGPD basis) |
 | 027 | **Idempotency model** (scoped keys, response replay, same-transaction writes) |
@@ -1444,7 +1534,7 @@ TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
 | R-08 | HIGH | Bots/sniping during selection and turns | §20.2; pick windows; per-route limits; CAPTCHA on risk |
 | R-09 | HIGH | Multi-account / collusion to gain territory or benefits | §20.1; T-30 |
 | R-10 | HIGH | Payment duplication/outage/chargebacks (gated) | idempotency, signed webhooks, reconciliation, gateway fraud tools |
-| R-11 | HIGH | Turn scheduling precision/worker lag with 5–10 s windows; single-process poller | TASK-078; deadline-driven execution; alerts on step delay |
+| R-11 | HIGH | Round-window open/close/resolution precision and worker lag (window length is per-campaign configuration); single-process poller | TASK-078; deadline-driven execution; alerts on step delay |
 | R-12 | HIGH | Merchant fails to fulfill the prize | §20.7; fulfillment SLA, evidence, settlement holdback |
 | R-13 | MEDIUM | Credit-split/Sorte mechanic poorly understood | UX research, tutorial, DS "claro" voice |
 | R-14 | MEDIUM | Visual drift toward casino/bet aesthetics | §42/§43 guardrails; DS review in DoD |
@@ -1454,7 +1544,10 @@ TASK-097 Circular distance for temperature; winningZoneSize guard (G-09..G-11)
 | R-18 | MEDIUM | Stale mobile clients vs API changes during the model migration | versioned endpoints; compatibility window; kill switches |
 | R-19 | MEDIUM | Operational hygiene: test data in production; credentials ever pasted in chat/logs must be rotated | cleanup runbook; rotate |
 | R-20 | LOW | Premature microservices/realtime over-engineering | §11; ADR required |
-| R-21 | HIGH | Strategic skipping/hoarding: a skipped turn costs nothing and spending is never forced, so a participant can skip every round and spend all movements in the last turn (late burst / last-mover advantage); groups could also coordinate absences | `maxMovementsPerTurn` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns |
+| R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns |
+| R-22 | MEDIUM | Round resolution order undefined (T-32): harmless with additive circular displacement (same end-of-round position) but the audit's per-action before/after depends on it, and any future order-dependent rule would change results | engine takes the order as an explicit input + policy id; decide T-32 before the pilot; versioned engine |
+| R-23 | HIGH | Window-open/close load spikes: thousands of submissions at the deadline and push fan-out at the window start | validate+insert path without a room lock; idempotent submit; queue/worker for notifications; load test (TASK-105) |
+| R-24 | MEDIUM | Pick-priority fairness and comprehension: late entrants may be left with the worst remaining positions (accepted, DECISION-11) | disclose in the terms (BR-060); show remaining free positions; clear "entering earlier = choosing earlier" copy |
 
 ---
 
@@ -1468,22 +1561,24 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 |----|-----|----------|--------|
 | ~~T-01~~ | RESOLVED | Displacement per credit = exactly 1 position — resolved by the owner's worked examples (DECISION-01); explicit confirmation requested | — |
 | ~~T-02~~ | RESOLVED | Bar end: **CIRCULAR / wrap-around** (DECISION-01) | — |
-| T-03 | HIGH | Turn duration (5, 8, 10 s…): fixed or per campaign? Minimum allowed? Behavior at exactly the deadline | turn orchestration (config) |
+| ~~T-03~~ | RESOLVED | Round action window length is configuration (`roundActionWindowSeconds`, DECISION-17); the window closes at `serverTime >= actionWindowClosesAt` (DECISION-16). A minimum allowed value is a backoffice validation for product to set, not an engine rule | — |
 | ~~T-04~~ | RESOLVED | Absent + configured `autoAction` → executes and consumes 1 movement; absent + none → skip, no consumption (DECISION-03/04) | — |
 | T-05 | MEDIUM (future) | Zone-expansion geometry for K > 1 (center, parity, edges, wrap across 1/N). **Not needed for the MVP** (`winningZoneSize = 1`, DECISION-06) | — (MVP) |
-| ~~T-06~~ | RESOLVED (core) | No carry-over; unused movements expire; skipped turns cost nothing (DECISION-04). Remaining sub-questions (per-turn cap, voluntary pass, manual STAY cost) are tracked in T-31 | see T-31 |
+| ~~T-06~~ | RESOLVED (core) | No carry-over; unused movements expire; skipped rounds cost nothing (DECISION-04). Remaining sub-questions (per-round cap, voluntary pass, manual STAY cost) are tracked in T-31 | see T-31 |
 | ~~T-07~~ | RESOLVED (ASSUMPTION) | No "final strategy lock / final movement plan": the game ends at the last turn of the last round (BR-067). Adopted 2026-11-11 with the owner's authorization; revisable | — |
 | T-08 | HIGH | Narrowed (DECISION-02/05): single credit unit and per-campaign `maxCreditsPerParticipant` are decided. Remaining: per-category minimum/maximum (e.g. at least one position or movement) and the fate of the old 80% example | config schema |
-| T-09 | HIGH | Number of rounds: universal (8) or parameter; scheduling across days | config |
-| T-10 | HIGH | Temperature: formula, number of levels/intervals, individual vs global, visibility of exact distance | live UI / projection |
+| ~~T-09~~ | RESOLVED | Number and schedule of rounds are per-campaign configuration (`roundSchedule`, DECISION-12); there is no universal number | — |
+| T-10 | HIGH | Temperature: **distance is circular (decided, DECISION-14)**; open: number of levels, thresholds (HOT/WARM/COLD or another model), individual vs global, visibility of exact distance. Quadrants are not used (DECISION-13) | live UI / projection (not the engine) |
 | T-11 | MEDIUM (future) | Prize split for K > 1. **Not applicable in the MVP** (1 position → 1 winner, DECISION-06) | Fulfillment/Commerce (not the engine) |
 | T-12 | HIGH | Room limits: minimum participants, maximum, what happens below the minimum | room operations |
-| T-13 | MEDIUM | Initial Sorte distribution (uniform over 1..N?) | randomness design |
-| T-14 | HIGH | Position-selection details: pick window length, absence criterion, uniform random allocation among free positions? | selection phase |
-| T-15 | MEDIUM | Confirmation-order tie-breaking when payments/confirmations are near-simultaneous | selection/turn order |
+| ~~T-13~~ | RESOLVED (ASSUMPTION on distribution) | Initial Sorte is random, server-side, auditable, in 1..N (DECISION-15). Implemented as uniform over 1..N (ASSUMPTION; revisable) | — |
+| T-14 | HIGH | Position selection, narrowed: exact choice and entry-order priority are decided (DECISION-07/08/11). Open: pick window length per participant, the absence criterion, and whether random allocation of an absent picker is uniform among free positions (implemented uniform, ASSUMPTION) | selection phase (config) |
+| ~~T-15~~ | RESOLVED | `entrySequence` is assigned transactionally from a per-room counter; no ties (DECISION-08, BR-072) | — |
 | T-16 | MEDIUM | Cancellation/refund/dispute after bar formation (resizing is impossible) | operations |
 | T-30 | HIGH | Limits per user/room, multiple participations, affiliates of merchant playing their own prize | fraud/product |
-| ~~T-31~~ | RESOLVED (ASSUMPTION) | Derived semantics fixed on 2026-11-11 (§6.5): STAY costs 1; `maxMovementsPerTurn` explicit per campaign; no explicit pass; absent = no accepted command by the deadline; zero-balance auto action = skip (`NO_MOVEMENTS_LEFT`); auto action = exactly 1 movement | — |
+| T-32 | HIGH | `ROUND_RESOLUTION_ORDER`: in which order the server applies a round's simultaneous actions (PROPOSED: `entrySequence`, not approved). The end-of-round Sorte position does not depend on it under current rules; the audit's `resolutionSequence` and per-action before/after do | audit detail; any future order-dependent rule |
+| T-33 | MEDIUM | `CAN_EDIT_ROUND_ACTION_BEFORE_DEADLINE`: may a participant change a submitted action before the window closes (YES/NO)? Until decided the engine accepts one action per participant per round | submission API contract |
+| ~~T-31~~ | RESOLVED (ASSUMPTION) | Derived semantics fixed on 2026-11-11 (§6.5): STAY costs 1; `maxMovementsPerRound` explicit per campaign; no explicit pass; absent = no accepted command by the deadline; zero-balance auto action = skip (`NO_MOVEMENTS_LEFT`); auto action = exactly 1 movement | — |
 
 ## 54.2 Business, legal, technical
 
@@ -1503,13 +1598,13 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | T-28 | LOW | User-facing vocabulary (jogada/jogador vs movimento/participante) |
 | T-29 | MEDIUM | Behavior when a participant is offline for several days in a multi-day campaign; per-campaign timezone presentation |
 
-**Totals:** 31 TBDs registered — 6 resolved on 2026-11-11 (T-01, T-02, T-04, T-06 by owner decision; T-07 and T-31 as ASSUMPTIONS authorized by the owner), 25 open: 1 CRITICAL (T-21, LEGAL GATE), 14 HIGH, 9 MEDIUM, 1 LOW. T-05 and T-11 were downgraded to MEDIUM because the MVP uses `winningZoneSize = 1`. **No TBD blocks Game Engine V1 anymore.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
+**Totals:** 33 TBDs registered — 10 resolved (2026-11-11: T-01, T-02, T-04, T-06 by owner decision, T-07 and T-31 as ASSUMPTIONS; 2026-11-12: T-03, T-09, T-13, T-15), 23 open: 1 CRITICAL (T-21, LEGAL GATE), 13 HIGH, 8 MEDIUM, 1 LOW. T-05 and T-11 stay MEDIUM-future because the MVP uses `winningZoneSize = 1`. T-14 and T-10 were narrowed. New: T-32 (round resolution order) and T-33 (edit before deadline). **No TBD blocks Game Engine V1.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
 
 ---
 
 # 55. Things Claude Must Never Assume
 
-Participation price · credits-to-money ratio · prize value · platform margin · merchant cost/settlement · bar size · room capacity/minimum · total credits (10) · max share (80%) · rounds (8) · turn duration (5/8/10 s) · winning-zone expansion for K > 1 · prize split for K > 1 · the value of `maxMovementsPerTurn` · temperature formula/levels/scope · occupancy disclosure · eligibility/minimum age · payment provider · legal authorization · tax treatment · benefit percentage/expiry/withdrawability/transferability · retention duration · marketing consent · **that the DECISION-01..06 example numbers (200/300 positions, 10/20 credits, R$ 0,50/5/10) are constants** · **that participants move** · **that a final lock exists** · **that positions are chosen at entry** · **that an EXAMPLE is a rule**.
+Participation price · credits-to-money ratio · prize value · platform margin · merchant cost/settlement · bar size · room capacity/minimum · total credits (10) · max share (80%) · rounds (8) · round window length (`roundActionWindowSeconds`) · campaign timing/dates · round resolution order (T-32) · temperature thresholds (T-10) · whether an action can be edited before the window closes (T-33) · quadrants · winning-zone expansion for K > 1 · prize split for K > 1 · the value of `maxMovementsPerRound` · temperature formula/levels/scope · occupancy disclosure · eligibility/minimum age · payment provider · legal authorization · tax treatment · benefit percentage/expiry/withdrawability/transferability · retention duration · marketing consent · **that the DECISION-01..06 example numbers (200/300 positions, 10/20 credits, R$ 0,50/5/10) are constants** · **that participants move** · **that a final lock exists** · **that positions are chosen at entry** · **that an EXAMPLE is a rule**.
 
 When uncertain: `check latest explicit product decision → check this file → check ADRs → check tests/contracts → preserve configurability → document TBD`. Ask the owner when a decision would change game behavior.
 

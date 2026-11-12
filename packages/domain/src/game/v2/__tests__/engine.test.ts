@@ -32,19 +32,19 @@ describe("GameEngine V2 - movement on the circular bar", () => {
     expect(state.sortePosition).toBe(102);
   });
 
-  it("G-14: maxMovementsPerTurn caps MANUAL commands; null means no limit (explicit choice)", () => {
+  it("G-14: maxMovementsPerRound caps MANUAL commands; null means no limit (explicit choice)", () => {
     const capped = startGame(BAR_200, 10, 3);
     expect(engine.applyMovement(capped, manual("A", "RIGHT", 3)).state.sortePosition).toBe(13);
-    expectCode(() => engine.applyMovement(capped, manual("A", "RIGHT", 4)), "EXCEEDS_TURN_CAP");
+    expectCode(() => engine.applyMovement(capped, manual("A", "RIGHT", 4)), "EXCEEDS_ROUND_CAP");
     const unlimited = startGame(BAR_200, 10, null);
     expect(engine.applyMovement(unlimited, manual("A", "RIGHT", 10)).state.sortePosition).toBe(20);
   });
 
-  it("requires an explicit maxMovementsPerTurn (no default, BR-068)", () => {
+  it("requires an explicit maxMovementsPerRound (no default, BR-068)", () => {
     const input = initInput(BAR_200, 10);
     const missing = { ...input, config: { winningZoneSize: 1 } } as unknown as GameInitInput;
     expectCode(() => engine.initialize(missing), "INVALID_CONFIG");
-    const zero = { ...input, config: { winningZoneSize: 1, maxMovementsPerTurn: 0 } };
+    const zero = { ...input, config: { winningZoneSize: 1, maxMovementsPerRound: 0 } };
     expectCode(() => engine.initialize(zero), "INVALID_CONFIG");
   });
 
@@ -66,12 +66,12 @@ describe("GameEngine V2 - movement on the circular bar", () => {
     expectCode(() => engine.applyMovement(state, manual("A", "RIGHT", 0)), "INVALID_CREDITS");
   });
 
-  it("G-16: a turn can be consumed only once", () => {
+  it("G-16: a round action can be consumed only once", () => {
     const state = startGame(BAR_200, 50);
-    const first = engine.applyMovement(state, manual("A", "RIGHT", 1, "turn-x"));
+    const first = engine.applyMovement(state, manual("A", "RIGHT", 1, "action-x"));
     expectCode(
-      () => engine.applyMovement(first.state, manual("B", "RIGHT", 1, "turn-x")),
-      "TURN_ALREADY_CONSUMED",
+      () => engine.applyMovement(first.state, manual("B", "RIGHT", 1, "action-x")),
+      "ROUND_ACTION_ALREADY_CONSUMED",
     );
   });
 
@@ -92,7 +92,7 @@ describe("GameEngine V2 - absent participants (DECISION-03/04, BR-070)", () => {
 
   it("G-06: absent + autoAction RIGHT executes exactly 1 movement, recorded AUTOMATIC", () => {
     const state = startGame(specs, 40);
-    const plan = engine.planAbsentTurn(state, "A");
+    const plan = engine.planAbsentAction(state, "A");
     expect(plan).toEqual({ action: "AUTOMATIC", kind: "RIGHT", credits: 1 });
     const { state: next, transition } = engine.applyMovement(state, {
       ...manual("A", "RIGHT", 1),
@@ -104,17 +104,17 @@ describe("GameEngine V2 - absent participants (DECISION-03/04, BR-070)", () => {
     expect(transition.creditsConsumed).toBe(1);
   });
 
-  it("G-07: absent + autoAction NONE skips the turn at no cost, still hash-chained", () => {
+  it("G-07: absent + autoAction NONE skips the round action at no cost, still hash-chained", () => {
     const state = startGame(specs, 40);
-    expect(engine.planAbsentTurn(state, "B")).toEqual({
+    expect(engine.planAbsentAction(state, "B")).toEqual({
       action: "SKIP",
       reason: "ABSENT_NO_AUTO_ACTION",
     });
-    const { state: next, transition } = engine.skipTurn(state, {
+    const { state: next, transition } = engine.skipAction(state, {
       participantId: "B",
-      turnId: "turn-skip-1",
+      actionId: "action-skip-1",
       round: 1,
-      turnIndexInRound: 1,
+      resolutionSequence: 1,
       serverTime: T0,
     });
     expect(transition.outcome).toBe("SKIPPED");
@@ -130,15 +130,15 @@ describe("GameEngine V2 - absent participants (DECISION-03/04, BR-070)", () => {
 
   it("G-13: auto action with zero balance becomes a skip with reason NO_MOVEMENTS_LEFT", () => {
     const state = startGame(specs, 40);
-    expect(engine.planAbsentTurn(state, "C")).toEqual({
+    expect(engine.planAbsentAction(state, "C")).toEqual({
       action: "SKIP",
       reason: "NO_MOVEMENTS_LEFT",
     });
-    const { transition } = engine.skipTurn(state, {
+    const { transition } = engine.skipAction(state, {
       participantId: "C",
-      turnId: "turn-c",
+      actionId: "action-c",
       round: 1,
-      turnIndexInRound: 2,
+      resolutionSequence: 2,
       serverTime: T0,
     });
     expect(transition.skipReason).toBe("NO_MOVEMENTS_LEFT");
@@ -161,15 +161,15 @@ describe("GameEngine V2 - absent participants (DECISION-03/04, BR-070)", () => {
     );
   });
 
-  it("refuses to skip a turn that must execute the configured auto action", () => {
+  it("refuses to skip a round action that must execute the configured auto action", () => {
     const state = startGame(specs, 40);
     expectCode(
       () =>
-        engine.skipTurn(state, {
+        engine.skipAction(state, {
           participantId: "A",
-          turnId: "t",
+          actionId: "t",
           round: 1,
-          turnIndexInRound: 0,
+          resolutionSequence: 0,
           serverTime: T0,
         }),
       "SKIP_NOT_APPLICABLE",
@@ -224,7 +224,7 @@ describe("GameEngine V2 - completion, expiry and winner (DECISION-04/06)", () =>
     const input = initInput(BAR_200, 5);
     expectCode(
       () =>
-        engine.initialize({ ...input, config: { winningZoneSize: 3, maxMovementsPerTurn: null } }),
+        engine.initialize({ ...input, config: { winningZoneSize: 3, maxMovementsPerRound: null } }),
       "UNSUPPORTED_WINNING_ZONE",
     );
   });
@@ -262,7 +262,7 @@ describe("GameEngine V2 - replay and hash chain (NFR-005, G-12)", () => {
         step.type === "MOVEMENT"
           ? engine.applyMovement(state, step.command)
           : step.type === "SKIP"
-            ? engine.skipTurn(state, step.input)
+            ? engine.skipAction(state, step.input)
             : engine.complete(state, step.input);
       steps.push(step);
       transitions.push(result.transition);
@@ -271,7 +271,13 @@ describe("GameEngine V2 - replay and hash chain (NFR-005, G-12)", () => {
     run({ type: "MOVEMENT", command: manual("A", "RIGHT", 3, "g-1") });
     run({
       type: "SKIP",
-      input: { participantId: "B", turnId: "g-2", round: 1, turnIndexInRound: 1, serverTime: T0 },
+      input: {
+        participantId: "B",
+        actionId: "g-2",
+        round: 1,
+        resolutionSequence: 1,
+        serverTime: T0,
+      },
     });
     run({
       type: "MOVEMENT",

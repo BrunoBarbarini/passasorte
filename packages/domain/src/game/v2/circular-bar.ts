@@ -60,3 +60,20 @@ export function circularDistance(a: number, b: number, size: number): number {
   const direct = Math.abs(a - b);
   return Math.min(direct, size - direct);
 }
+
+/**
+ * BR-014: a participant's distance is the minimum circular distance from any
+ * of their (fixed) positions to the Sorte. Only the distance is defined; the
+ * thresholds that turn it into FRIO / MORNO / QUENTE are TBD (T-10) and must
+ * not be invented here.
+ */
+export function minCircularDistance(
+  positions: readonly number[],
+  sortePosition: number,
+  size: number,
+): number {
+  if (positions.length === 0) {
+    throw new GameEngineError("INVALID_POSITION", "O participante não possui posições.");
+  }
+  return Math.min(...positions.map((position) => circularDistance(position, sortePosition, size)));
+}

@@ -33,7 +33,7 @@ export function seatsOf(specs: readonly SeatSpec[]): ParticipantSeatV2[] {
   let next = 1;
   return specs.map((spec, index) => ({
     participantId: spec.id,
-    turnOrder: index + 1,
+    entrySequence: index + 1,
     positions: Array.from({ length: spec.count }, () => next++),
     movementBalance: spec.balance,
     autoAction: spec.auto ?? "NONE",
@@ -43,10 +43,10 @@ export function seatsOf(specs: readonly SeatSpec[]): ParticipantSeatV2[] {
 export function initInput(
   specs: readonly SeatSpec[],
   initialSortePosition: number,
-  maxMovementsPerTurn: number | null = null,
+  maxMovementsPerRound: number | null = null,
 ): GameInitInput {
   return {
-    config: { winningZoneSize: 1, maxMovementsPerTurn },
+    config: { winningZoneSize: 1, maxMovementsPerRound },
     participants: seatsOf(specs),
     randomnessCommitmentHash: COMMITMENT,
     initialSortePosition,
@@ -56,9 +56,9 @@ export function initInput(
 export function startGame(
   specs: readonly SeatSpec[],
   initialSortePosition: number,
-  maxMovementsPerTurn: number | null = null,
+  maxMovementsPerRound: number | null = null,
 ): GameStateV2 {
-  return engine.initialize(initInput(specs, initialSortePosition, maxMovementsPerTurn));
+  return engine.initialize(initInput(specs, initialSortePosition, maxMovementsPerRound));
 }
 
 let turnCounter = 0;
@@ -66,13 +66,13 @@ export function manual(
   participantId: string,
   kind: SorteDirection,
   credits: number,
-  turnId: string = `turn-${(turnCounter += 1)}`,
+  actionId: string = `action-${(turnCounter += 1)}`,
 ): MovementCommandV2 {
   return {
     participantId,
-    turnId,
+    actionId,
     round: 1,
-    turnIndexInRound: 0,
+    resolutionSequence: 0,
     serverTime: T0,
     kind,
     credits,
