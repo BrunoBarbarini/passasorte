@@ -35,3 +35,6 @@ infrastructure/terraform/.terraform.lock.hcl
 
 # Segredos do deploy manual do apps/api (Cloud Run) - nunca commitar.
 infrastructure/cloudbuild/deploy-api.local.env
+
+# Neon API key (never commit)
+.neon-api-key
