@@ -322,11 +322,16 @@ model GameRoom {
   finalLockedAt         DateTime?      @map("final_locked_at")
   cancelledAt           DateTime?      @map("cancelled_at")
   cancellationReason    String?        @map("cancellation_reason")
+  /// DECISION-08: per-room counter used to assign Participation.entrySequence
+  /// inside the confirming transaction (UPDATE ... RETURNING).
+  entrySequenceCounter  Int            @default(0) @map("entry_sequence_counter")
 
-  campaign       Campaign        @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  campaign       Campaign            @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   positionHolds  PositionHold[]
   participations Participation[]
   gameRun        GameRun?
+  gameRounds     GameRound[]
+  initialSorte   InitialSorteRecord?
 
   @@map("game_rooms")
 }
@@ -369,13 +374,17 @@ model Participation {
   /// TASK-030 Final Movement Plan (BR-028: immutable once written — only
   /// ever set once by application-layer code, never updated).
   finalMovementPlan      Json?               @map("final_movement_plan")
+  /// DECISION-08: server-assigned pick priority; unique per room, immutable once set.
+  entrySequence          Int?                @map("entry_sequence")
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
   room             GameRoom             @relation(fields: [roomId], references: [id], onDelete: Restrict)
   user             User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   movementCommands MovementCommandLog[]
+  roundActions     RoundAction[]
 
+  @@unique([roomId, entrySequence])
   @@index([userId, roomId])
   @@map("participations")
 }
@@ -510,7 +519,7 @@ model BenefitAccount {
   userId    String   @unique @map("user_id") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
 
-  user         User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   ledgerEntries BenefitLedgerEntry[]
   redemptions   BenefitRedemption[]
 
@@ -527,16 +536,16 @@ model BenefitAccount {
 /// "constraint as atomic-claim backstop" pattern as PositionHold
 /// (BR-010) and FinalMovementPlan.
 model BenefitLedgerEntry {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  accountId       String    @map("account_id") @db.Uuid
-  userId          String    @map("user_id") @db.Uuid
-  type            String
-  amountMinorUnits Int      @map("amount_minor_units")
-  reason          String?
-  sourceRef       String?   @map("source_ref")
-  expiresAt       DateTime? @map("expires_at")
-  grantEntryId    String?   @unique @map("grant_entry_id") @db.Uuid
-  createdAt       DateTime  @default(now()) @map("created_at")
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId        String    @map("account_id") @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  type             String
+  amountMinorUnits Int       @map("amount_minor_units")
+  reason           String?
+  sourceRef        String?   @map("source_ref")
+  expiresAt        DateTime? @map("expires_at")
+  grantEntryId     String?   @unique @map("grant_entry_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   account    BenefitAccount      @relation(fields: [accountId], references: [id], onDelete: Restrict)
   grantEntry BenefitLedgerEntry? @relation("BenefitLedgerEntryDebit", fields: [grantEntryId], references: [id], onDelete: Restrict)
@@ -553,14 +562,83 @@ model BenefitLedgerEntry {
 /// IdempotencyKey/Idempotency-Key mechanism (FR-038/BR-037), not a
 /// column on this table.
 model BenefitRedemption {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  accountId       String   @map("account_id") @db.Uuid
-  benefitId       String   @map("benefit_id") @db.Uuid
-  amountMinorUnits Int     @map("amount_minor_units")
-  redeemedAt      DateTime @default(now()) @map("redeemed_at")
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountId        String   @map("account_id") @db.Uuid
+  benefitId        String   @map("benefit_id") @db.Uuid
+  amountMinorUnits Int      @map("amount_minor_units")
+  redeemedAt       DateTime @default(now()) @map("redeemed_at")
 
   account BenefitAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
 
   @@index([accountId])
   @@map("benefit_redemptions")
+}
+
+/// ADR-024 / DECISION-16: one collective action window per round. Statuses are
+/// SCHEDULED | WINDOW_OPEN | WINDOW_CLOSED | RESOLVING | RESOLVED (CHECK in SQL).
+model GameRound {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId                String    @map("room_id") @db.Uuid
+  roundNo               Int       @map("round_no")
+  actionWindowOpensAt   DateTime  @map("action_window_opens_at")
+  actionWindowClosesAt  DateTime  @map("action_window_closes_at")
+  resolutionStartedAt   DateTime? @map("resolution_started_at")
+  resolutionCompletedAt DateTime? @map("resolution_completed_at")
+  status                String    @default("SCHEDULED")
+  /// T-32 is TBD: records which policy ordered the actions.
+  resolutionOrderPolicy String?   @map("resolution_order_policy")
+  luckPositionBefore    Int?      @map("luck_position_before")
+  luckPositionAfter     Int?      @map("luck_position_after")
+  createdAt             DateTime  @default(now()) @map("created_at")
+
+  room    GameRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  actions RoundAction[]
+
+  @@unique([roomId, roundNo])
+  @@index([status, actionWindowClosesAt])
+  @@map("game_rounds")
+}
+
+/// DECISION-21 / BR-085. Append-only (trigger in SQL). UNIQUE(round, participation) is BR-056.
+model RoundAction {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roundId            String    @map("round_id") @db.Uuid
+  participationId    String    @map("participation_id") @db.Uuid
+  entrySequence      Int       @map("entry_sequence")
+  kind               String
+  credits            Int
+  executionType      String    @map("execution_type")
+  outcome            String    @default("APPLIED")
+  skipReason         String?   @map("skip_reason")
+  submittedAt        DateTime? @map("submitted_at")
+  idempotencyKey     String?   @map("idempotency_key")
+  resolutionSequence Int?      @map("resolution_sequence")
+  luckPositionBefore Int?      @map("luck_position_before")
+  luckPositionAfter  Int?      @map("luck_position_after")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  round         GameRound     @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+
+  @@unique([roundId, participationId])
+  @@unique([participationId, roundId, idempotencyKey])
+  @@index([roundId])
+  @@map("round_actions")
+}
+
+/// DECISION-15 / BR-079. One per room, immutable (trigger in SQL).
+model InitialSorteRecord {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId                   String   @unique @map("room_id") @db.Uuid
+  gameId                   String   @map("game_id")
+  boardSize                Int      @map("board_size")
+  engineVersion            String   @map("engine_version")
+  randomnessCommitmentHash String   @map("randomness_commitment_hash")
+  initialLuckPosition      Int      @map("initial_luck_position")
+  generatedAt              DateTime @map("generated_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  room GameRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
+
+  @@map("initial_sorte_records")
 }
