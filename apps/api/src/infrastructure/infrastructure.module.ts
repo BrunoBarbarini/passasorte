@@ -13,6 +13,7 @@ import { PrismaPositionHoldRepository } from "./prisma/repositories/position-hol
 import { PrismaParticipationRepository } from "./prisma/repositories/participation.repository.js";
 import { PrismaIdempotencyRepository } from "./prisma/repositories/idempotency.repository.js";
 import { PrismaGameRunRepository } from "./prisma/repositories/game-run.repository.js";
+import { PrismaRoundActionRepository } from "./prisma/repositories/round-action.repository.js";
 import { PrismaNotificationRepository } from "./prisma/repositories/notification.repository.js";
 import {
   PrismaBenefitAccountRepository,
@@ -35,6 +36,7 @@ import {
   EXPERIENCE_REPOSITORY,
   FEATURE_FLAGS,
   GAME_RUN_REPOSITORY,
+  ROUND_ACTION_REPOSITORY,
   IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
   NOTIFICATION_PROVIDERS,
@@ -113,6 +115,7 @@ const analyticsPortProvider: Provider = {
     { provide: PARTICIPATION_REPOSITORY, useClass: PrismaParticipationRepository },
     { provide: IDEMPOTENCY_PORT, useClass: PrismaIdempotencyRepository },
     { provide: GAME_RUN_REPOSITORY, useClass: PrismaGameRunRepository },
+    { provide: ROUND_ACTION_REPOSITORY, useClass: PrismaRoundActionRepository },
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     notificationProvidersProvider,
     { provide: BENEFIT_ACCOUNT_REPOSITORY, useClass: PrismaBenefitAccountRepository },
@@ -138,6 +141,7 @@ const analyticsPortProvider: Provider = {
     PARTICIPATION_REPOSITORY,
     IDEMPOTENCY_PORT,
     GAME_RUN_REPOSITORY,
+    ROUND_ACTION_REPOSITORY,
     NOTIFICATION_REPOSITORY,
     NOTIFICATION_PROVIDERS,
     BENEFIT_ACCOUNT_REPOSITORY,

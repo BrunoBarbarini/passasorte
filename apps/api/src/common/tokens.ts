@@ -16,6 +16,7 @@ export const POSITION_HOLD_REPOSITORY = Symbol("PositionHoldRepository");
 export const PARTICIPATION_REPOSITORY = Symbol("ParticipationRepository");
 export const IDEMPOTENCY_PORT = Symbol("IdempotencyPort");
 export const GAME_RUN_REPOSITORY = Symbol("GameRunRepository");
+export const ROUND_ACTION_REPOSITORY = Symbol("RoundActionRepository");
 export const NOTIFICATION_REPOSITORY = Symbol("NotificationRepository");
 export const NOTIFICATION_PROVIDERS = Symbol("NotificationProviders");
 export const BENEFIT_ACCOUNT_REPOSITORY = Symbol("BenefitAccountRepository");

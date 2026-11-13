@@ -320,8 +320,8 @@ function planAbsentAction(state: GameStateV2, participantId: string): AbsentActi
 }
 
 function assertCommandAllowed(
-  state: GameStateV2,
-  seat: SeatState,
+  state: Pick<GameStateV2, "config">,
+  seat: Pick<SeatState, "autoAction" | "movementBalance">,
   command: Pick<MovementCommandV2, "kind" | "credits" | "executionType">,
 ): void {
   if (!DIRECTIONS.includes(command.kind)) {
@@ -567,6 +567,28 @@ export function describeSkipReasonPtBr(reason: SkipReason): string {
     case "NO_MOVEMENTS_LEFT":
       return "Sua vez foi pulada porque você não tem mais movimentos disponíveis nesta partida.";
   }
+}
+
+/**
+ * Same rules as `validateSubmission`, for callers that hold the frozen room
+ * config and a participant's balance but not a full engine state (the API
+ * validates a submission while the window is open, before the round is
+ * resolved). Single source of truth: it runs `assertCommandAllowed`.
+ */
+export function assertManualSubmissionAllowed(
+  config: GameConfigV2,
+  movementBalance: number,
+  submission: Pick<SubmissionCheckInput, "kind" | "credits">,
+): void {
+  assertCommandAllowed(
+    { config },
+    { autoAction: "NONE", movementBalance },
+    {
+      kind: submission.kind,
+      credits: submission.credits,
+      executionType: "MANUAL",
+    },
+  );
 }
 
 function validateSubmission(state: GameStateV2, submission: SubmissionCheckInput): void {

@@ -854,7 +854,7 @@ PUT  /participations/{id}/auto-action            LEFT|RIGHT|STAY|NONE (versioned
 GET  /rooms/{id}/selection                       selection state: whose pick it is, deadline (server time), free positions (own view)
 POST /rooms/{id}/picks                           pick positions in my pick window (idempotent, atomic)
 GET  /rooms/{id}/state                           authoritative snapshot: Sorte, my positions, my temperature, phase, my turn/deadline
-POST /rounds/{roundId}/actions                    {kind, credits}; idempotent (participationId+roundId+Idempotency-Key); server decides validity/time (window closes at serverTime >= actionWindowClosesAt)
+POST /participations/{id}/round-actions           {kind, credits}; IMPLEMENTED 2026-11-13 (TASK-105). The server picks the round whose window is open (the client never sends a round, see "never accept" below); idempotent (participationId+roundId+Idempotency-Key, header <= 128 chars); owner only; kill switch ENABLE_MOVEMENTS; window closes at serverTime >= actionWindowClosesAt; sending again replaces (T-33)
 GET  /rooms/{id}/events                          SSE stream (state invalidation), see §15
 GET  /rooms/{id}/replay                          after COMPLETED: history + verification material (role-gated / public per policy)
 ```
@@ -1488,7 +1488,7 @@ TASK-101 Round audit viewer/replay: per-participant per-round rows (DECISION-21)
 TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, `roundActionWindowSeconds` (DECISION-12/17)
 TASK-103 Remove quadrants from the legacy board model and config (DECISION-13) — DONE
 TASK-104 Temperature mapping (5 levels, % of the bar size, level only) — DONE 2026-11-13 (`v2/temperature.ts`, bands 2/6/15/30 as configuration)
-TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission`, replace-until-close with `submissionSequence` (BR-086/088)
+TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission`, replace-until-close with `submissionSequence` (BR-086/088) — DONE 2026-11-13: `POST /api/v1/participations/{id}/round-actions`, use case `SubmitRoundActionUseCase`, adapter `PrismaRoundActionRepository`, `gameV2.assertManualSubmissionAllowed`; validated with 12 concurrent same-key and 20 concurrent distinct-key writes on real Postgres (Neon). Expand migration `20261113103000_room_engine_v2_config` adds nullable `game_rooms.engine_v2_config` (applied to Neon, not Supabase). **Still missing:** nothing writes `engine_v2_config` yet (room start must freeze it, with the mandatory cap, TASK-106) and nothing creates `game_rounds` or flips their status (scheduler); until then the endpoint answers 422 "configuração do motor V2" / "não há janela aberta"
 TASK-106 Enforce BR-089: `assertRoundCapDefined` in the room-opening use case and a required field in the backoffice room form (pt-BR validation message). Domain function DONE (`gameV2.assertRoundCapDefined`)
 TASK-107 Live-state projection for participants: own temperature level only; never `sortePosition` or exact distance (BR-090); contract test that the payload has no such field
 TASK-108 Second simulation with temperature-only information (hoarding with hidden Sorte position) — DONE 2026-11-13 (`docs/SIMULACAO_TEMPERATURA.md`)

@@ -23,6 +23,7 @@ export * from "./ports/notification-repository.port.js";
 export * from "./ports/notification-provider.port.js";
 export * from "./ports/benefit-repository.port.js";
 export * from "./ports/analytics.port.js";
+export * from "./ports/round-action-repository.port.js";
 
 export * from "./use-cases/identity/authenticate-request.use-case.js";
 
@@ -48,6 +49,7 @@ export * from "./use-cases/room/start-room.use-case.js";
 export * from "./use-cases/participation/create-participation.use-case.js";
 export * from "./use-cases/participation/confirm-participation.use-case.js";
 export * from "./use-cases/participation/submit-movement-command.use-case.js";
+export * from "./use-cases/participation/submit-round-action.use-case.js";
 export * from "./use-cases/participation/submit-final-movement-command.use-case.js";
 
 export * from "./use-cases/game/expire-position-holds.use-case.js";

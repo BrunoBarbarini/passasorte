@@ -27,3 +27,12 @@ export const SubmitFinalMovementSchema = z.object({
   atSequence: z.number().int().nonnegative(),
 });
 export type SubmitFinalMovementBody = z.infer<typeof SubmitFinalMovementSchema>;
+
+/** DECISION-16 / T-33: one action per participant per round window; sending again replaces it. */
+export const ROUND_ACTION_KINDS = ["LEFT", "RIGHT", "STAY"] as const;
+
+export const SubmitRoundActionSchema = z.object({
+  kind: z.enum(ROUND_ACTION_KINDS),
+  credits: z.number().int().min(1),
+});
+export type SubmitRoundActionBody = z.infer<typeof SubmitRoundActionSchema>;

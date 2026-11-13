@@ -325,6 +325,9 @@ model GameRoom {
   /// DECISION-08: per-room counter used to assign Participation.entrySequence
   /// inside the confirming transaction (UPDATE ... RETURNING).
   entrySequenceCounter  Int            @default(0) @map("entry_sequence_counter")
+  /// BR-024/BR-089: GameConfigV2 frozen when the room starts ({winningZoneSize, maxMovementsPerRound}).
+  /// Null for rooms created before Engine V2; round submissions are rejected for them.
+  engineV2Config        Json?          @map("engine_v2_config")
 
   campaign       Campaign            @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   positionHolds  PositionHold[]
