@@ -46,7 +46,11 @@ export function rng(seed: number): () => number {
   };
 }
 
-function allocate(players: readonly PlayerSpec[], layout: Scenario["layout"], rand: () => number) {
+export function allocate(
+  players: readonly PlayerSpec[],
+  layout: Scenario["layout"],
+  rand: () => number,
+) {
   const size = players.reduce((s, p) => s + p.positions, 0);
   const free = Array.from({ length: size }, (_, i) => i + 1);
   const seats: ParticipantSeatV2[] = [];
@@ -84,7 +88,7 @@ function circ(a: number, b: number, n: number): number {
   return Math.min(d, n - d);
 }
 
-function decide(
+export function decide(
   p: PlayerSpec,
   state: GameStateV2,
   round: number,

@@ -360,7 +360,7 @@ Explicit product decisions; the newest decision wins over earlier text. Numbers 
 
 **Approved on 2026-11-12 (11:42; the partner accepted the suggestions of the PDF "3 perguntas em aberto"):** T-32 actions are applied in `entrySequence` order; T-33 a submission can be replaced until the window closes and the last one counts; T-10 (partial) the temperature has **5 levels** (as in the Design System), measured as a **percentage of the bar size** (valid for any board size), and the participant sees the level only, **never the exact distance**.
 
-**Still open (do not invent):** T-10 — the **numeric limit of each of the 5 levels** (in % of the bar). The questionnaire left them to the partner and the answer did not state them. Temperature mapping (TASK-104) stays blocked on this single item. The visibility question (Sorte position hidden) is decided by BR-090.
+**Approved on 2026-11-13 (the partner agreed with the owner's answers and with the suggestions):** T-10 is resolved. Initial limits, in % of the bar size (inclusive upper bounds): **Muito quente ≤ 2%, Quente ≤ 6%, Morno ≤ 15%, Frio ≤ 30%, Congelando > 30% (up to 50%, the circular maximum)**. They are **configuration** (frozen in the room's config snapshot, `INITIAL_TEMPERATURE_BANDS` in the engine), **starting values subject to adjustment after the test and the pilot**, not engine constants. The visibility question (Sorte position hidden) is decided by BR-090. The temperature-only simulation (`docs/SIMULACAO_TEMPERATURA.md`) suggests these bands run hot at low position density (Congelando ≈ 2%, Muito quente ≈ 19% of observations), so review them with real pilot data.
 
 ---
 
@@ -447,7 +447,7 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-075 ★ | The last picker receives exactly the remaining positions; the bar is never enlarged to compensate. | FACT (DECISION-11) |
 | BR-076 ★ | Campaign timing (`entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`) is configuration; no hard-coded durations. | FACT (DECISION-12) |
 | BR-077 ★ | `quadrantsEnabled = false` in the MVP; quadrant-based scheduling is NOT NOW. | FACT (DECISION-13/22) |
-| BR-078 ★ | Temperature distance is the minimum **circular** distance (BR-014) measured as a percentage of the bar size; 5 levels; the participant sees the level, never the exact distance. The **numeric limit of each level is TBD (T-10)** and must not be invented. | FACT (DECISION-14, T-10 partial) |
+| BR-078 ★ | Temperature distance is the minimum **circular** distance (BR-014) measured as a percentage of the bar size; 5 levels; the participant sees the level, never the exact distance. The numeric limits are configuration; initial approved values: Muito quente ≤ 2%, Quente ≤ 6%, Morno ≤ 15%, Frio ≤ 30%, Congelando > 30% (of the bar), subject to adjustment after the test/pilot. | FACT (DECISION-14; limits approved 2026-11-13) |
 | BR-079 ★ | The initial Sorte position is random, server-side, auditable, in `1..boardSize`, with the record `gameId, boardSize, engineVersion, randomnessCommitment, initialLuckPosition, generatedAt`; never client or administrator input. | FACT (DECISION-15) |
 | BR-080 ★ | Each round has a collective action window in which every participant may submit; the server resolves the round when it closes. | FACT (DECISION-16) |
 | BR-081 ★ | `roundActionWindowSeconds` is configuration (per campaign or game config), never a constant. | FACT (DECISION-17) |
@@ -535,7 +535,7 @@ type Transition = {
 - `resolveRound(state, { roundId, roundNumber, windowOpensAt, windowClosesAt, resolutionStartedAt, submissions, resolutionOrder, resolutionOrderPolicy })`: submissions must be inside `[windowOpensAt, windowClosesAt)` on the server clock, at most one per participant; resolution cannot start before the window closes; `resolutionOrder` must contain every participant exactly once. `entrySequenceOrder()` (policy `ENTRY_SEQUENCE_V1`, approved T-32) is passed explicitly by the caller; `selectLatestSubmissions()` applies T-33 (last submission wins) before resolution.
 - Entry phase (`entry-phase.ts`): `computeBoardSize` (Σ position credits), `createPositionSelection`, `currentPicker` (entry order), `pickPositions` (exact positions, exclusive, exactly the purchased count), `autoAllocatePositions` (absent picker, deterministic from the sealed seed), `isSelectionComplete`, `toParticipantSeats` (refuses to build seats while any position is empty).
 - Initial Sorte (`randomness.ts`): `deriveInitialSortePosition(seed, N)` (uniform on 1..N; the uniform distribution is an ASSUMPTION, T-13) and `createInitialSorteRecord` (verifies the seed against the commitment and returns the DECISION-15 record). Independent derivation stream per purpose.
-- `minCircularDistance(positions, sorte, N)` implements BR-014; temperature levels are not implemented (T-10: the numeric limits are still missing).
+- `minCircularDistance(positions, sorte, N)` implements BR-014; temperature levels are implemented in `v2/temperature.ts` (TASK-104; `participantTemperature` returns only level + pt-BR label, BR-090).
 
 State hashes use SHA-256 over a **canonical serialization** (stable key order, integers only, no floats, no locale). The chain links each transition to its predecessor; the genesis hash covers the config snapshot, seat list, commitment hash and bar size.
 
@@ -1487,11 +1487,11 @@ TASK-100 Round window UX: strong alert (push, in-app, sound, haptic, countdown),
 TASK-101 Round audit viewer/replay: per-participant per-round rows (DECISION-21)
 TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStartAt`, `roundSchedule`, `resultAt`, `roundActionWindowSeconds` (DECISION-12/17)
 TASK-103 Remove quadrants from the legacy board model and config (DECISION-13) — DONE
-TASK-104 Temperature mapping (5 levels, % of the bar size, level only) — BLOCKED only by the numeric limits of each level (T-10)
+TASK-104 Temperature mapping (5 levels, % of the bar size, level only) — DONE 2026-11-13 (`v2/temperature.ts`, bands 2/6/15/30 as configuration)
 TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission`, replace-until-close with `submissionSequence` (BR-086/088)
 TASK-106 Enforce BR-089: `assertRoundCapDefined` in the room-opening use case and a required field in the backoffice room form (pt-BR validation message). Domain function DONE (`gameV2.assertRoundCapDefined`)
 TASK-107 Live-state projection for participants: own temperature level only; never `sortePosition` or exact distance (BR-090); contract test that the payload has no such field
-TASK-108 Second simulation with temperature-only information once the T-10 limits exist (hoarding with hidden Sorte position)
+TASK-108 Second simulation with temperature-only information (hoarding with hidden Sorte position) — DONE 2026-11-13 (`docs/SIMULACAO_TEMPERATURA.md`)
 ```
 
 ---
@@ -1561,7 +1561,7 @@ TASK-108 Second simulation with temperature-only information once the T-10 limit
 | R-18 | MEDIUM | Stale mobile clients vs API changes during the model migration | versioned endpoints; compatibility window; kill switches |
 | R-19 | MEDIUM | Operational hygiene: test data in production; credentials ever pasted in chat/logs must be rotated | cleanup runbook; rotate |
 | R-20 | LOW | Premature microservices/realtime over-engineering | §11; ADR required |
-| R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns | **Simulated 2026-11-13 (`docs/SIMULACAO_ENGINE_V2.md`):** without a per-round cap, saving everything for the last round raised the win chance from 5.1% to 8.3% (same purchase); with a cap of 3 or 1 per round the effect reversed. `maxMovementsPerRound` should be required per campaign. **Mitigations decided 2026-11-13: BR-089 (mandatory limit) and BR-090 (Sorte position hidden); re-simulate with temperature-only information (TASK-108).**
+| R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns | **Simulated 2026-11-13 (`docs/SIMULACAO_ENGINE_V2.md`):** without a per-round cap, saving everything for the last round raised the win chance from 5.1% to 8.3% (same purchase); with a cap of 3 or 1 per round the effect reversed. `maxMovementsPerRound` should be required per campaign. **Mitigations decided 2026-11-13: BR-089 (mandatory limit) and BR-090 (Sorte position hidden). Re-simulated with temperature-only information (TASK-108, `docs/SIMULACAO_TEMPERATURA.md`): saving everything gives no edge (3.70% vs 3.97% share without a cap), so R-21 is no longer material when the Sorte position is hidden; the cap stays mandatory.**
 | R-22 | LOW | ~~Round resolution order undefined~~ Resolved by T-32 (`entrySequence` order). Residual: any future order-dependent rule would change results | policy id stored per round; versioned engine |
 | R-23 | HIGH | Window-open/close load spikes: thousands of submissions at the deadline and push fan-out at the window start | validate+insert path without a room lock; idempotent submit; queue/worker for notifications; load test (TASK-105) |
 | R-24 | MEDIUM | Pick-priority fairness and comprehension: late entrants may be left with the worst remaining positions (accepted, DECISION-11) | disclose in the terms (BR-060); show remaining free positions; clear "entering earlier = choosing earlier" copy |
@@ -1585,7 +1585,7 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | ~~T-07~~ | RESOLVED (ASSUMPTION) | No "final strategy lock / final movement plan": the game ends at the last turn of the last round (BR-067). Adopted 2026-11-11 with the owner's authorization; revisable | — |
 | T-08 | HIGH | Narrowed (DECISION-02/05): single credit unit and per-campaign `maxCreditsPerParticipant` are decided. Remaining: per-category minimum/maximum (e.g. at least one position or movement) and the fate of the old 80% example | config schema |
 | ~~T-09~~ | RESOLVED | Number and schedule of rounds are per-campaign configuration (`roundSchedule`, DECISION-12); there is no universal number | — |
-| T-10 | HIGH | Temperature, **partly decided 2026-11-12**: circular distance (DECISION-14), 5 levels, % of the bar size, level only (no exact distance). **Open: the numeric limit of each level** (% of the bar) | live UI / projection (not the engine); TASK-104 |
+| T-10 | HIGH → **RESOLVED 2026-11-13** | Temperature: circular distance (DECISION-14), 5 levels, % of the bar size, level only. Limits approved as initial configuration: ≤2% / ≤6% / ≤15% / ≤30% / >30%; adjustable after test/pilot | TASK-104 DONE |
 | T-11 | MEDIUM (future) | Prize split for K > 1. **Not applicable in the MVP** (1 position → 1 winner, DECISION-06) | Fulfillment/Commerce (not the engine) |
 | T-12 | HIGH | Room limits: minimum participants, maximum, what happens below the minimum | room operations |
 | ~~T-13~~ | RESOLVED (ASSUMPTION on distribution) | Initial Sorte is random, server-side, auditable, in 1..N (DECISION-15). Implemented as uniform over 1..N (ASSUMPTION; revisable) | — |
@@ -1615,7 +1615,7 @@ Severity: CRITICAL · HIGH · MEDIUM · LOW. **"Blocks Engine V1"** means the pu
 | T-28 | LOW | User-facing vocabulary (jogada/jogador vs movimento/participante) |
 | T-29 | MEDIUM | Behavior when a participant is offline for several days in a multi-day campaign; per-campaign timezone presentation |
 
-**Totals:** 33 TBDs registered — 12 resolved (2026-11-11: T-01, T-02, T-04, T-06 by owner decision, T-07 and T-31 as ASSUMPTIONS; 2026-11-12: T-03, T-09, T-13, T-15, T-32, T-33), 21 open: 1 CRITICAL (T-21, LEGAL GATE), 12 HIGH, 7 MEDIUM, 1 LOW. T-05 and T-11 stay MEDIUM-future because the MVP uses `winningZoneSize = 1`. T-14 and T-10 were narrowed (T-10 now only lacks the numeric limits). **No TBD blocks Game Engine V1.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
+**Totals:** 33 TBDs registered — 13 resolved (2026-11-11: T-01, T-02, T-04, T-06 by owner decision, T-07 and T-31 as ASSUMPTIONS; 2026-11-12: T-03, T-09, T-13, T-15, T-32, T-33; 2026-11-13: T-10), 20 open: 1 CRITICAL (T-21, LEGAL GATE), 11 HIGH, 7 MEDIUM, 1 LOW. T-05 and T-11 stay MEDIUM-future because the MVP uses `winningZoneSize = 1`. T-14 was narrowed. **No TBD blocks Game Engine V1.** See `docs/CLAUDE_MD_RECONCILIATION.md` §D.
 
 ---
 
