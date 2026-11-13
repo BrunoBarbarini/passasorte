@@ -356,9 +356,11 @@ Explicit product decisions; the newest decision wins over earlier text. Numbers 
 
 **Related rules stated with them:** one effective action per participant per round — the participant may replace it until the window closes and the **last submission counts** (T-33, approved 2026-11-12); idempotency by `participationId + roundId + idempotencyKey`; after `serverTime >= actionWindowClosesAt` no new submission is accepted and the app's visual state is never trusted; offline participants follow DECISION-03/04 (`autoAction ≠ NONE` → automatic move; `NONE` → skip without consuming).
 
+**Decisions of 2026-11-13 (FACT; Bruno accepted the suggestions of the simulation report `docs/SIMULACAO_ENGINE_V2.md`; the partner may revisit):** (1) the per-round movement limit is mandatory in every campaign (BR-089); the value stays per campaign and is not defined here; (2) the participant sees only the temperature, never the Sorte's exact position (BR-090); (3) a strategy advantage over casual play is accepted and measured in the pilot (BR-091).
+
 **Approved on 2026-11-12 (11:42; the partner accepted the suggestions of the PDF "3 perguntas em aberto"):** T-32 actions are applied in `entrySequence` order; T-33 a submission can be replaced until the window closes and the last one counts; T-10 (partial) the temperature has **5 levels** (as in the Design System), measured as a **percentage of the bar size** (valid for any board size), and the participant sees the level only, **never the exact distance**.
 
-**Still open (do not invent):** T-10 — the **numeric limit of each of the 5 levels** (in % of the bar). The questionnaire left them to the partner and the answer did not state them. Temperature mapping (TASK-104) stays blocked on this single item.
+**Still open (do not invent):** T-10 — the **numeric limit of each of the 5 levels** (in % of the bar). The questionnaire left them to the partner and the answer did not state them. Temperature mapping (TASK-104) stays blocked on this single item. The visibility question (Sorte position hidden) is decided by BR-090.
 
 ---
 
@@ -435,7 +437,7 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-065 ★ | Every executed or skipped turn is audited with `executionType` (MANUAL / AUTOMATIC), the configured `autoAction` (if any), the movement executed and the credits consumed. | FACT (DECISION-03) |
 | BR-066 ★ | MVP `winningZoneSize = 1`. The engine supports the parameter but rejects `winningZoneSize > 1` for real rooms until a rule is formally defined. | FACT (DECISION-06) |
 | BR-067 ★ | There is no final lock / final movement plan: the game ends at the last round and the result is resolved right after. | ASSUMPTION (T-07, 2026-11-11) |
-| BR-068 ★ | `maxMovementsPerRound` is a campaign setting for manual commands; a campaign needs an explicit number or an explicit `null` (no limit); there is no default value. | ASSUMPTION (T-31b) |
+| BR-068 ★ | `maxMovementsPerRound` is a campaign setting for manual commands. The engine still accepts `null` (simulation, tests, replay), but a campaign **cannot open a room without a positive integer limit** (BR-089); there is no default value. | FACT (2026-11-13, supersedes the ASSUMPTION of T-31b) |
 | BR-069 ★ | There is no explicit pass command; not acting before the window closes makes the participant absent (BR-052/BR-063). The window closes at `serverTime >= actionWindowClosesAt` (DECISION-16). | ASSUMPTION (T-31c) + FACT (deadline) |
 | BR-070 ★ | A skipped turn carries a reason: `ABSENT_NO_AUTO_ACTION` or `NO_MOVEMENTS_LEFT`. An automatic action consumes exactly 1 movement; with zero balance it becomes `NO_MOVEMENTS_LEFT`. | ASSUMPTION (T-31e/f) |
 | BR-071 ★ | The participant chooses the exact positions to occupy; no automatic selection while present. Absent pickers → BR-053. | FACT (DECISION-07) |
@@ -456,6 +458,9 @@ Legend: ✔ unchanged · ✎ revised by reconciliation · ✖ obsolete · ★ ne
 | BR-086 ★ | Submissions are idempotent: `participationId + roundId + idempotencyKey` never registers twice (a retry returns the original result); each accepted submission gets an increasing `submissionSequence`; deadlines use the server clock. | FACT (DECISION-16 concurrency, T-33) |
 | BR-087 ★ | A round's actions are applied in `entrySequence` order (`ENTRY_SEQUENCE_V1`). The engine still takes the order as an explicit input and the policy id is stored per round, so a future policy is versioned. | FACT (T-32, approved 2026-11-12) |
 | BR-088 ★ | Replacing a submitted action before the window closes is allowed; every submission is kept (append-only) and the one with the highest `submissionSequence` is resolved (`selectLatestSubmissions`). | FACT (T-33, approved 2026-11-12) |
+| BR-089 ★ | Every campaign must have a per-round movement limit (positive integer, chosen per campaign) before its room opens; the backoffice and the room-opening use case call `assertRoundCapDefined`. The value is NOT defined here. | FACT (2026-11-13) |
+| BR-090 ★ | The participant sees only their personal temperature level (5 levels, T-10); the Sorte's exact position and the exact distance are never sent to participant clients during the match. Detail stays in the audit/replay after the result. | FACT (2026-11-13) |
+| BR-091 ★ | A strategy advantage over casual play is accepted for the MVP and measured in the pilot with real players; no protection for casual players is added now. | FACT (2026-11-13) |
 
 ---
 
@@ -870,7 +875,7 @@ validation (Zod) · authentication where needed · authorization (server RBAC + 
 - The server is the only source of state. Client countdowns are presentation of a server-supplied `deadlineAt` + server-time offset; they never gate acceptance.
 - On reconnect/foreground the app rebuilds state from the authoritative snapshot; a closed app does not pause the game.
 - Animations/haptics may play, but **must never depict a state different from the authoritative server state** (§43).
-- Privacy: the stream and snapshot expose only what the caller may see (own positions, own temperature, global Sorte per policy, T-10).
+- Privacy: the stream and snapshot expose only what the caller may see (own positions, own temperature level only; never the Sorte's exact position, BR-090).
 
 ---
 
@@ -1484,6 +1489,9 @@ TASK-102 Campaign timing configuration: `entryOpenAt`, `entryCloseAt`, `gameStar
 TASK-103 Remove quadrants from the legacy board model and config (DECISION-13) — DONE
 TASK-104 Temperature mapping (5 levels, % of the bar size, level only) — BLOCKED only by the numeric limits of each level (T-10)
 TASK-105 Round submission API: idempotent (`participationId + roundId + idempotencyKey`), server-clock window check, `validateSubmission`, replace-until-close with `submissionSequence` (BR-086/088)
+TASK-106 Enforce BR-089: `assertRoundCapDefined` in the room-opening use case and a required field in the backoffice room form (pt-BR validation message). Domain function DONE (`gameV2.assertRoundCapDefined`)
+TASK-107 Live-state projection for participants: own temperature level only; never `sortePosition` or exact distance (BR-090); contract test that the payload has no such field
+TASK-108 Second simulation with temperature-only information once the T-10 limits exist (hoarding with hidden Sorte position)
 ```
 
 ---
@@ -1553,7 +1561,7 @@ TASK-105 Round submission API: idempotent (`participationId + roundId + idempote
 | R-18 | MEDIUM | Stale mobile clients vs API changes during the model migration | versioned endpoints; compatibility window; kill switches |
 | R-19 | MEDIUM | Operational hygiene: test data in production; credentials ever pasted in chat/logs must be rotated | cleanup runbook; rotate |
 | R-20 | LOW | Premature microservices/realtime over-engineering | §11; ADR required |
-| R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns | **Simulated 2026-11-13 (`docs/SIMULACAO_ENGINE_V2.md`):** without a per-round cap, saving everything for the last round raised the win chance from 5.1% to 8.3% (same purchase); with a cap of 3 or 1 per round the effect reversed. `maxMovementsPerRound` should be required per campaign.
+| R-21 | MEDIUM | Strategic skipping/hoarding: a skipped round costs nothing and spending is never forced, so a participant can save everything for the last rounds; groups could coordinate absences. DECISION-16 removes the fixed last-mover observation advantage (nobody sees others before acting in a round), but a last-round burst remains possible | `maxMovementsPerRound` (BR-068, explicit choice per campaign); simulation before the pilot; fraud monitoring of skip patterns | **Simulated 2026-11-13 (`docs/SIMULACAO_ENGINE_V2.md`):** without a per-round cap, saving everything for the last round raised the win chance from 5.1% to 8.3% (same purchase); with a cap of 3 or 1 per round the effect reversed. `maxMovementsPerRound` should be required per campaign. **Mitigations decided 2026-11-13: BR-089 (mandatory limit) and BR-090 (Sorte position hidden); re-simulate with temperature-only information (TASK-108).**
 | R-22 | LOW | ~~Round resolution order undefined~~ Resolved by T-32 (`entrySequence` order). Residual: any future order-dependent rule would change results | policy id stored per round; versioned engine |
 | R-23 | HIGH | Window-open/close load spikes: thousands of submissions at the deadline and push fan-out at the window start | validate+insert path without a room lock; idempotent submit; queue/worker for notifications; load test (TASK-105) |
 | R-24 | MEDIUM | Pick-priority fairness and comprehension: late entrants may be left with the worst remaining positions (accepted, DECISION-11) | disclose in the terms (BR-060); show remaining free positions; clear "entering earlier = choosing earlier" copy |

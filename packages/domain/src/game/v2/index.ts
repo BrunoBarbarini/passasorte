@@ -7,3 +7,4 @@ export * from "./engine.js";
 export * from "./randomness.js";
 export * from "./round.js";
 export * from "./entry-phase.js";
+export * from "./campaign-rules.js";
