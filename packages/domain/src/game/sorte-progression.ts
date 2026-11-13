@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy Sorte random walk; V2 moves only by participants' actions.
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * How the Sorte zone evolves from one game step to the next is an
  * explicitly undecided product/algorithm question (CLAUDE.md #58: the

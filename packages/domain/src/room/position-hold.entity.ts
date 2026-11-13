@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy entry-time position holds; V2 selects positions after entries close (DECISION-10).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Position holds (FR-022..FR-026, BR-010/BR-011). A hold is a temporary,
  * NOT-ownership reservation (BR-011) on a board position while a

@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy zone-based winner selection; V2 has one winning position (winningZoneSize = 1).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Winner selection (BR-032/BR-033, FR-042/FR-043, ADR-019). Winner
  * semantics - what exactly determines a winner, multi-winner behavior,

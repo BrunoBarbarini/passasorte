@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy player-translation movement (PLAYER_TRANSLATION_V1); the Sorte is the only thing that moves now.
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Movement (BR-020..BR-023/FR-035..FR-038). MVP directions are LEFT/
  * RIGHT (BR-021, FACT). The exact EFFECT of a movement on the board is

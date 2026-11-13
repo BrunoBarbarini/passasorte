@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy fixed participation package; V2 uses single credits (DECISION-02).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Participation package (FR-029): the configurable bundle a participant
  * enters with — how many positions, how many movements, and (optionally,

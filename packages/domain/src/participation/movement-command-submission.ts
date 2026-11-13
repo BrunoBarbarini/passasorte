@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy client-sequenced movement commands; V2 uses collective round windows (DECISION-16).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Movement command submission validation (FR-037 Movement Validation).
  * Pure, structural checks only: that the command targets one of the

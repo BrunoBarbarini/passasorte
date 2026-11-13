@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy final lock / final movement plan; it no longer exists (BR-067, T-07).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Final strategy lock (BR-026..BR-029/FR-039/FR-040). The round
  * THRESHOLD that starts the final phase is configurable (BR-027); once

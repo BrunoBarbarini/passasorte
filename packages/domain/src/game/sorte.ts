@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy Sorte as a zone with clamp; V2 uses a single circular position.
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * Sorte zone (BR-012/BR-013): a configurable-width range on the board.
  * How the zone MOVES round to round is a separate, explicitly TBD

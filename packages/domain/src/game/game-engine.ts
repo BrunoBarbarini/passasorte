@@ -1,3 +1,6 @@
+// DEPRECATED (ADR-022/023/024, 2026-11-12): legacy simulation engine V1 (player moves, linear distance, clamp).
+// Do not extend. Replaced by `gameV2` (packages/domain/src/game/v2). Removed in the
+// contract step of docs/LEGACY_AUDIT_ENGINE_V2.md once no legacy room is active.
 /**
  * GameEngine (ADR-011): the authoritative, versioned, pure actor for
  * Sorte/temperature/movement/result (CLAUDE.md #3.10, FR-031..FR-044).
