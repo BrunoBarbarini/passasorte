@@ -36,3 +36,8 @@ export const SubmitRoundActionSchema = z.object({
   credits: z.number().int().min(1),
 });
 export type SubmitRoundActionBody = z.infer<typeof SubmitRoundActionSchema>;
+
+/** DECISION-03/04: NONE = skip when absent (no cost); LEFT/RIGHT/STAY = automatic action costing 1 movement. */
+export const AUTO_ACTIONS = ["NONE", "LEFT", "RIGHT", "STAY"] as const;
+export const SetAutoActionSchema = z.object({ autoAction: z.enum(AUTO_ACTIONS) });
+export type SetAutoActionBody = z.infer<typeof SetAutoActionSchema>;

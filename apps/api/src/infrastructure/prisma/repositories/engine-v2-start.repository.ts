@@ -25,6 +25,7 @@ export class PrismaEngineV2StartRepository implements EngineV2StartPort {
       entrySequence: row.entrySequence,
       positions: row.positions,
       movementAllowance: row.movementAllowanceTotal,
+      autoAction: row.autoAction as gameV2.AutoAction,
     }));
   }
 

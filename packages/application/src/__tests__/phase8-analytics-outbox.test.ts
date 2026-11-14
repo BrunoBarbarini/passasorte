@@ -44,6 +44,8 @@ import type { TrackAnalyticsEventInput } from "../ports/analytics.port.js";
 import { ConflictError } from "../errors.js";
 
 /** Records every published event instead of doing anything with them - shared by every use-case test below. */
+type AutoAction = "NONE" | "LEFT" | "RIGHT" | "STAY";
+
 class RecordingOutboxPort {
   readonly published: PublishOutboxEventInput[] = [];
   async publish(input: PublishOutboxEventInput): Promise<void> {
@@ -180,6 +182,14 @@ class InMemoryParticipationRepository implements ParticipationRepository {
     this.byId.set(id, participation);
     return participation;
   }
+  async setAutoAction(id: string, autoAction: AutoAction): Promise<Participation> {
+    const existing = this.byId.get(id);
+    if (!existing) throw new Error(`participation "${id}" not found in test double`);
+    const updated = { ...existing, autoAction };
+    this.byId.set(id, updated);
+    return updated;
+  }
+
   async transition(id: string, status: ParticipationStatus): Promise<Participation> {
     const existing = this.byId.get(id);
     if (!existing) throw new Error(`participation "${id}" not found in test double`);

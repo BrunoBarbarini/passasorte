@@ -37,7 +37,7 @@ export class ResolveRoundV2UseCase {
             entrySequence: seat.entrySequence,
             positions: seat.positions,
             movementBalance: seat.movementAllowanceTotal,
-            autoAction: "NONE" as const,
+            autoAction: seat.autoAction,
           })),
           randomnessCommitmentHash: ctx.initialSorte.randomnessCommitmentHash,
           initialSortePosition: ctx.initialSorte.initialLuckPosition,

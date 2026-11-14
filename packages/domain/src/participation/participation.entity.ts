@@ -10,6 +10,7 @@
  * the pluggable `MovementAllocation` shape (movement-allocation.entity.js)
  * so `spendMovement()` keeps working unchanged.
  */
+import type { AutoAction } from "../game/v2/types.js";
 import type { Position } from "../game/board.js";
 import type { ParticipationStatus } from "./participation-state-machine.js";
 import type { MovementAllocation } from "./movement-allocation.entity.js";
@@ -32,6 +33,8 @@ export interface Participation {
   readonly movementAllowanceTotal: number;
   /** BR-020: how much of that budget has been spent so far. */
   readonly movementAllowanceUsed: number;
+  /** DECISION-03/04: what happens when the participant is absent in a round. Absent = NONE. */
+  readonly autoAction?: AutoAction;
   readonly createdAt: Date;
 }
 

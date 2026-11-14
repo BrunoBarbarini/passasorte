@@ -44,6 +44,10 @@ export class PrismaParticipationRepository implements ParticipationRepository {
     return toDomainParticipation(row);
   }
 
+  setAutoAction(): Promise<Participation> {
+    throw new Error("PrismaParticipationRepository.setAutoAction não é usado pelo worker.");
+  }
+
   countActiveByUserAndRoom(): Promise<number> {
     throw new Error(
       "PrismaParticipationRepository.countActiveByUserAndRoom não é usado pelo worker.",

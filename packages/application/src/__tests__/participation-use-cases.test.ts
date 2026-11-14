@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   EligibilityRule,
+  gameV2,
   FinalMovementPlan,
   MovementAllocation,
   MovementCommand,
@@ -12,6 +13,7 @@ import type {
   PositionHold,
 } from "@passasorte/domain";
 import { FinalMovementPlanAlreadyLockedError } from "@passasorte/domain";
+import { SetAutoActionUseCase } from "../use-cases/participation/set-auto-action.use-case.js";
 import { CreateParticipationUseCase } from "../use-cases/participation/create-participation.use-case.js";
 import { ConfirmParticipationUseCase } from "../use-cases/participation/confirm-participation.use-case.js";
 import { SubmitMovementCommandUseCase } from "../use-cases/participation/submit-movement-command.use-case.js";
@@ -51,6 +53,14 @@ class InMemoryParticipationRepository implements ParticipationRepository {
     };
     this.byId.set(id, participation);
     return participation;
+  }
+
+  async setAutoAction(id: string, autoAction: gameV2.AutoAction): Promise<Participation> {
+    const existing = this.byId.get(id);
+    if (!existing) throw new Error(`participation "${id}" not found in test double`);
+    const updated = { ...existing, autoAction };
+    this.byId.set(id, updated);
+    return updated;
   }
 
   async transition(id: string, status: ParticipationStatus): Promise<Participation> {
@@ -315,5 +325,51 @@ describe("SubmitMovementCommandUseCase (FR-037/FR-038)", () => {
     await expect(
       useCase.execute({ participationId: participation.id, command, idempotencyKey: "same-key" }),
     ).rejects.toThrow(ConflictError);
+  });
+});
+
+describe("SetAutoActionUseCase (DECISION-03/04)", () => {
+  async function setup(status: ParticipationStatus) {
+    const repo = new InMemoryParticipationRepository();
+    const created = await repo.create({
+      roomId: "room-1",
+      userId: "u1",
+      packageId: "pkg",
+      positions: [1],
+      movementAllowance: 2,
+    });
+    if (status !== "CREATED") await repo.transition(created.id, status);
+    return { repo, id: created.id };
+  }
+
+  it("stores the action while the participation has not started playing", async () => {
+    const { repo, id } = await setup("CREATED");
+    const updated = await new SetAutoActionUseCase(repo).execute({
+      participationId: id,
+      autoAction: "LEFT",
+    });
+    expect(updated.autoAction).toBe("LEFT");
+  });
+
+  it("rejects once the participation is ACTIVE or unknown", async () => {
+    const { repo } = await setup("CREATED");
+    const active: Participation = {
+      ...(await repo.create({
+        roomId: "r",
+        userId: "u",
+        packageId: "p",
+        positions: [1],
+        movementAllowance: 1,
+      })),
+      status: "ACTIVE",
+    };
+    (repo as unknown as { byId: Map<string, Participation> }).byId.set(active.id, active);
+    const useCase = new SetAutoActionUseCase(repo);
+    await expect(
+      useCase.execute({ participationId: active.id, autoAction: "STAY" }),
+    ).rejects.toThrow("ação automática");
+    await expect(
+      useCase.execute({ participationId: "nope", autoAction: "STAY" }),
+    ).rejects.toThrow();
   });
 });

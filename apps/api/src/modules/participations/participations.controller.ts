@@ -1,8 +1,19 @@
-import { Body, Controller, Get, Headers, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  Inject,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from "@nestjs/common";
 import {
   CreateParticipationSchema,
   SubmitFinalMovementSchema,
   SubmitMovementSchema,
+  SetAutoActionSchema,
   SubmitRoundActionSchema,
 } from "@passasorte/api-contract";
 import {
@@ -14,6 +25,7 @@ import {
   NotFoundError,
   SubmitFinalMovementCommandUseCase,
   SubmitMovementCommandUseCase,
+  SetAutoActionUseCase,
   SubmitRoundActionUseCase,
   ValidationError,
   type RoundActionRepository,
@@ -224,6 +236,21 @@ export class ParticipationsController {
       idempotencyKey,
     });
     return toSubmitRoundActionResponse(result);
+  }
+
+  /** DECISION-03/04: choose the automatic action; editable until the room starts (ASSUMPTION). */
+  @Put("participations/:id/auto-action")
+  async setAutoAction(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<Participation> {
+    await this.requireOwnedParticipation(id, user);
+    const input = parseWithSchema(SetAutoActionSchema, body);
+    return new SetAutoActionUseCase(this.participationRepository).execute({
+      participationId: id,
+      autoAction: input.autoAction,
+    });
   }
 
   @Post("participations/:id/final-movement")

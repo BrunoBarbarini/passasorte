@@ -23,8 +23,20 @@ const schedule: gameV2.RoundScheduleEntry[] = [
   { roundNo: 2, windowOpensAt: T(10), windowClosesAt: T(20) },
 ];
 const seats: RoomStartSeat[] = [
-  { participationId: "a", entrySequence: 1, positions: [1, 2], movementAllowance: 4 },
-  { participationId: "b", entrySequence: 2, positions: [3, 4], movementAllowance: 4 },
+  {
+    participationId: "a",
+    entrySequence: 1,
+    positions: [1, 2],
+    movementAllowance: 4,
+    autoAction: "NONE",
+  },
+  {
+    participationId: "b",
+    entrySequence: 2,
+    positions: [3, 4],
+    movementAllowance: 4,
+    autoAction: "NONE",
+  },
 ];
 
 function rooms(status = "ENTRY_LOCKED"): RoomRepository {
@@ -96,8 +108,20 @@ describe("StartRoomV2UseCase", () => {
       ValidationError,
     );
     const gap = start([
-      { participationId: "a", entrySequence: 1, positions: [1, 2], movementAllowance: 4 },
-      { participationId: "b", entrySequence: 2, positions: [5, 6], movementAllowance: 4 },
+      {
+        participationId: "a",
+        entrySequence: 1,
+        positions: [1, 2],
+        movementAllowance: 4,
+        autoAction: "NONE",
+      },
+      {
+        participationId: "b",
+        entrySequence: 2,
+        positions: [5, 6],
+        movementAllowance: 4,
+        autoAction: "NONE",
+      },
     ]);
     await expect(gap.useCase.execute({ roomId: "r", config, schedule })).rejects.toBeInstanceOf(
       ValidationError,
@@ -110,7 +134,13 @@ describe("StartRoomV2UseCase", () => {
       start([]).useCase.execute({ roomId: "r", config, schedule }),
     ).rejects.toBeInstanceOf(DomainError);
     const noSeq = start([
-      { participationId: "a", entrySequence: null, positions: [1], movementAllowance: 1 },
+      {
+        participationId: "a",
+        entrySequence: null,
+        positions: [1],
+        movementAllowance: 1,
+        autoAction: "NONE",
+      },
     ]);
     await expect(noSeq.useCase.execute({ roomId: "r", config, schedule })).rejects.toBeInstanceOf(
       ValidationError,
@@ -120,6 +150,7 @@ describe("StartRoomV2UseCase", () => {
 
 /** In-memory resolution port that builds on the real start output. */
 class ResolutionFixture implements EngineV2ResolutionPort {
+  seatList: RoomStartSeat[] = seats;
   resolvedRounds = new Set<number>();
   priorSteps: gameV2.ReplayStep[] = [];
   submissions = new Map<number, gameV2.StoredSubmission[]>();
@@ -156,11 +187,12 @@ class ResolutionFixture implements EngineV2ResolutionPort {
       },
       config,
       initialSorte: this.initialSorte,
-      seats: seats.map((s) => ({
+      seats: this.seatList.map((s) => ({
         participationId: s.participationId,
         entrySequence: s.entrySequence as number,
         positions: s.positions,
         movementAllowanceTotal: s.movementAllowance,
+        autoAction: s.autoAction,
       })),
       priorSteps: this.priorSteps,
       submissions: this.submissions.get(roundNo) ?? [],
@@ -231,7 +263,7 @@ describe("ResolveRoundV2UseCase", () => {
           entrySequence: s.entrySequence as number,
           positions: s.positions,
           movementBalance: s.movementAllowance,
-          autoAction: "NONE" as const,
+          autoAction: s.autoAction,
         })),
         randomnessCommitmentHash: fx.initialSorte.randomnessCommitmentHash,
         initialSortePosition: fx.initialSorte.initialLuckPosition,
@@ -239,6 +271,22 @@ describe("ResolveRoundV2UseCase", () => {
       steps: [...fx.priorSteps, (c2.completion as NonNullable<typeof c2.completion>).step],
     });
     expect(replayed.result?.finalStateHash).toBe(c2.completion?.result.finalStateHash);
+  });
+
+  it("applies the participant's automatic action when absent (DECISION-03)", async () => {
+    const fx = new ResolutionFixture();
+    fx.seatList = [
+      seats[0] as RoomStartSeat,
+      { ...(seats[1] as RoomStartSeat), autoAction: "LEFT" },
+    ];
+    await new ResolveRoundV2UseCase(fx, () => T(10)).execute({ roundId: "round1" });
+    const rows = (fx.commits[0] as CommitRoundResolutionInput).resolution.audit;
+    expect(rows.find((r) => r.participantId === "b")).toMatchObject({
+      executionType: "AUTOMATIC",
+      action: "LEFT",
+      movementsConsumed: 1,
+    });
+    expect(rows.find((r) => r.participantId === "a")).toMatchObject({ outcome: "SKIPPED" });
   });
 
   it("is a no-op for an already resolved round (idempotent)", async () => {

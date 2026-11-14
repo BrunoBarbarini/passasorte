@@ -8,6 +8,7 @@ export interface RoomStartSeat {
   readonly entrySequence: number | null;
   readonly positions: readonly number[];
   readonly movementAllowance: number;
+  readonly autoAction: gameV2.AutoAction;
 }
 
 export interface CommitRoomStartInput {
@@ -43,6 +44,7 @@ export interface ResolutionSeat {
   readonly entrySequence: number;
   readonly positions: readonly number[];
   readonly movementAllowanceTotal: number;
+  readonly autoAction: gameV2.AutoAction;
 }
 
 export interface RoundResolutionContext {

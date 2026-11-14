@@ -78,6 +78,7 @@ export class PrismaEngineV2ResolutionRepository implements EngineV2ResolutionPor
         entrySequence: row.entrySequence,
         positions: row.positions,
         movementAllowanceTotal: row.movementAllowanceTotal,
+        autoAction: row.autoAction as gameV2.AutoAction,
       };
     });
 

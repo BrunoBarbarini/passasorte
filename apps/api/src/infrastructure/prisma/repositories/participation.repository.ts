@@ -1,6 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
   FinalMovementPlanAlreadyLockedError,
+  type gameV2,
   type FinalMovementPlan,
   type MovementAllocation,
   type MovementCommand,
@@ -21,6 +22,7 @@ function toDomainParticipation(row: PrismaParticipation): Participation {
     status: row.status,
     movementAllowanceTotal: row.movementAllowanceTotal,
     movementAllowanceUsed: row.movementAllowanceUsed,
+    autoAction: row.autoAction as gameV2.AutoAction,
     createdAt: row.createdAt,
   };
 }
@@ -77,6 +79,11 @@ export class PrismaParticipationRepository implements ParticipationRepository {
       return toDomainParticipation(row);
     }
     const row = await this.prisma.participation.update({ where: { id }, data: { status } });
+    return toDomainParticipation(row);
+  }
+
+  async setAutoAction(id: string, autoAction: gameV2.AutoAction): Promise<Participation> {
+    const row = await this.prisma.participation.update({ where: { id }, data: { autoAction } });
     return toDomainParticipation(row);
   }
 

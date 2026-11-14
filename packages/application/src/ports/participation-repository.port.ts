@@ -1,4 +1,5 @@
 import type {
+  gameV2,
   FinalMovementPlan,
   MovementAllocation,
   MovementCommand,
@@ -20,6 +21,8 @@ export interface ParticipationRepository {
   findById(id: string): Promise<Participation | null>;
   create(input: CreateParticipationInput): Promise<Participation>;
   transition(id: string, status: ParticipationStatus): Promise<Participation>;
+  /** DECISION-03/04: stores the automatic action. Callers check the participation has not started playing. */
+  setAutoAction(id: string, autoAction: gameV2.AutoAction): Promise<Participation>;
   countActiveByUserAndRoom(userId: string, roomId: string): Promise<number>;
   updateMovementAllocation(id: string, allocation: MovementAllocation): Promise<Participation>;
   listByUserAndRoom(userId: string, roomId: string): Promise<readonly Participation[]>;

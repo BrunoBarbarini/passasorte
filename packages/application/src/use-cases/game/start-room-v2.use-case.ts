@@ -55,7 +55,7 @@ export class StartRoomV2UseCase {
         entrySequence: seat.entrySequence,
         positions: seat.positions,
         movementBalance: seat.movementAllowance,
-        autoAction: "NONE",
+        autoAction: seat.autoAction,
       };
     });
 

@@ -379,6 +379,8 @@ model Participation {
   finalMovementPlan      Json?               @map("final_movement_plan")
   /// DECISION-08: server-assigned pick priority; unique per room, immutable once set.
   entrySequence          Int?                @map("entry_sequence")
+  /// DECISION-03/04: NONE | LEFT | RIGHT | STAY. Frozen when the room starts (ASSUMPTION, see CLAUDE.md).
+  autoAction             String              @default("NONE") @map("auto_action")
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
