@@ -4,6 +4,9 @@
  *   DRAFT -> OPEN -> ENTRY_LOCKED -> RUNNING -> FINAL_LOCK -> RESOLVING -> COMPLETED
  *     \_________________________________________________________________> CANCELLED
  *
+ * Engine V2 has no final lock (BR-067): a V2 room goes RUNNING -> RESOLVING directly
+ * once the last round window closes.
+ *
  * BR-045: cancellation is terminal. This module only knows *legality* of
  * a transition, not the business conditions that justify it (e.g. what
  * marks a room ready to open, or when it should auto-progress) — that
@@ -24,7 +27,7 @@ const FORWARD_TRANSITIONS: Record<RoomStatus, readonly RoomStatus[]> = {
   DRAFT: ["OPEN", "CANCELLED"],
   OPEN: ["ENTRY_LOCKED", "CANCELLED"],
   ENTRY_LOCKED: ["RUNNING", "CANCELLED"],
-  RUNNING: ["FINAL_LOCK", "CANCELLED"],
+  RUNNING: ["FINAL_LOCK", "RESOLVING", "CANCELLED"],
   FINAL_LOCK: ["RESOLVING", "CANCELLED"],
   RESOLVING: ["COMPLETED", "CANCELLED"],
   COMPLETED: [],

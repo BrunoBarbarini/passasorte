@@ -4,7 +4,12 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../../src/context/auth-context";
 import { apiRequest } from "../../../../src/lib/api-client";
-import { CAMPAIGN_STATUSES, type CampaignStatus, type CampaignView, type GameRoomView } from "../../../../src/types/api";
+import {
+  CAMPAIGN_STATUSES,
+  type CampaignStatus,
+  type CampaignView,
+  type GameRoomView,
+} from "../../../../src/types/api";
 import { Nav } from "../../../../src/components/Nav";
 import {
   Banner,
@@ -82,7 +87,9 @@ export default function CampaignDetailPage() {
     try {
       const [c, rs] = await Promise.all([
         apiRequest<CampaignView>(`/backoffice/campaigns/${campaignId}`, { accessToken: token }),
-        apiRequest<GameRoomView[]>(`/backoffice/campaigns/${campaignId}/rooms`, { accessToken: token }),
+        apiRequest<GameRoomView[]>(`/backoffice/campaigns/${campaignId}/rooms`, {
+          accessToken: token,
+        }),
       ]);
       setCampaign(c);
       setTitle(c.title);
@@ -128,7 +135,8 @@ export default function CampaignDetailPage() {
         accessToken: session.access_token,
         body: {
           status: targetStatus,
-          cancellationReason: targetStatus === "CANCELLED" ? cancellationReason || undefined : undefined,
+          cancellationReason:
+            targetStatus === "CANCELLED" ? cancellationReason || undefined : undefined,
         },
       });
       await refresh();
@@ -212,7 +220,12 @@ export default function CampaignDetailPage() {
                 <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
               </Field>
               <Field label="Timezone (IANA, opcional)" htmlFor="timezone">
-                <Input id="timezone" placeholder="America/Sao_Paulo" value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+                <Input
+                  id="timezone"
+                  placeholder="America/Sao_Paulo"
+                  value={timezone}
+                  onChange={(e) => setTimezone(e.target.value)}
+                />
               </Field>
               <Button type="submit" variant="secondary" loading={busy}>
                 Salvar rascunho
@@ -225,7 +238,11 @@ export default function CampaignDetailPage() {
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Transição de estado (FR-015/FR-016/FR-017)</h2>
           <form onSubmit={(e) => void handleTransition(e)}>
             <Field label="Novo status" htmlFor="targetStatus">
-              <Select id="targetStatus" value={targetStatus} onChange={(e) => setTargetStatus(e.target.value as CampaignStatus)}>
+              <Select
+                id="targetStatus"
+                value={targetStatus}
+                onChange={(e) => setTargetStatus(e.target.value as CampaignStatus)}
+              >
                 {CAMPAIGN_STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -235,7 +252,11 @@ export default function CampaignDetailPage() {
             </Field>
             {targetStatus === "CANCELLED" && (
               <Field label="Motivo do cancelamento" htmlFor="cancellationReason">
-                <Input id="cancellationReason" value={cancellationReason} onChange={(e) => setCancellationReason(e.target.value)} />
+                <Input
+                  id="cancellationReason"
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                />
               </Field>
             )}
             <Button type="submit" variant="secondary" loading={busy}>
@@ -253,8 +274,12 @@ export default function CampaignDetailPage() {
               <thead>
                 <tr>
                   <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Sala</th>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Capacidade</th>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Status</th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Capacidade
+                  </th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Status
+                  </th>
                   <th />
                 </tr>
               </thead>
@@ -277,16 +302,29 @@ export default function CampaignDetailPage() {
 
           <h3 style={{ fontSize: 14 }}>Nova sala</h3>
           <p style={{ color: colors.textMuted, fontSize: 13 }}>
-            Tamanho do tabuleiro, zona da Sorte, bandas de temperatura, pacotes de participação etc. ainda são TBD de
-            produto (CLAUDE.md #56/#58) — preencha com a configuração real desta sala, nada aqui vem pré-preenchido.
+            Tamanho do tabuleiro, zona da Sorte, bandas de temperatura, pacotes de participação etc.
+            ainda são TBD de produto (CLAUDE.md #56/#58) — preencha com a configuração real desta
+            sala, nada aqui vem pré-preenchido.
           </p>
           <form onSubmit={(e) => void handleCreateRoom(e)}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: spacing.md }}>
               <Field label="Capacidade" htmlFor="capacity">
-                <Input id="capacity" type="number" required value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+                <Input
+                  id="capacity"
+                  type="number"
+                  required
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                />
               </Field>
               <Field label="Hold TTL (ms)" htmlFor="holdTtlMs">
-                <Input id="holdTtlMs" type="number" required value={holdTtlMs} onChange={(e) => setHoldTtlMs(e.target.value)} />
+                <Input
+                  id="holdTtlMs"
+                  type="number"
+                  required
+                  value={holdTtlMs}
+                  onChange={(e) => setHoldTtlMs(e.target.value)}
+                />
               </Field>
             </div>
             <Field label="gameConfig (JSON)" htmlFor="gameConfigJson">
@@ -322,7 +360,9 @@ export default function CampaignDetailPage() {
           </form>
         </Card>
 
-        <LinkButton href={`/backoffice/merchants/${campaign.merchantId}`}>← Voltar ao merchant</LinkButton>
+        <LinkButton href={`/backoffice/merchants/${campaign.merchantId}`}>
+          ← Voltar ao merchant
+        </LinkButton>
       </main>
     </>
   );

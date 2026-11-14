@@ -45,8 +45,7 @@ body {
   /* p.7/p.20 do design system: "a identidade vem de escala, espaço e
      cor - não de fontes caricatas". Mesma decisão do mobile: fonte
      padrão da plataforma em vez de forçar Inter agora. */
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 a {

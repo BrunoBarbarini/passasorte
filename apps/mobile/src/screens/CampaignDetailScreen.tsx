@@ -91,7 +91,12 @@ export function CampaignDetailScreen({ route, navigation }: Props): React.JSX.El
 
 const styles = StyleSheet.create({
   title: { ...typography.h2, color: colors.navy },
-  subtitle: { ...typography.body, color: colors.textMuted, marginTop: spacing.xs, marginBottom: spacing.xl },
+  subtitle: {
+    ...typography.body,
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+    marginBottom: spacing.xl,
+  },
   sectionTitle: { ...typography.h3, color: colors.navy, marginBottom: spacing.md },
   error: { color: colors.danger, marginBottom: spacing.sm },
   empty: { ...typography.body, color: colors.textMuted },

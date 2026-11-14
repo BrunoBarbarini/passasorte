@@ -1,10 +1,12 @@
 import { Body, Controller, Inject, Param, Post, UseGuards } from "@nestjs/common";
-import { CreateRoomSchema, HoldPositionsSchema } from "@passasorte/api-contract";
+import { CreateRoomSchema, HoldPositionsSchema, StartRoomV2Schema } from "@passasorte/api-contract";
 import {
   CreateRoomUseCase,
   OpenRoomUseCase,
   LockRoomEntriesUseCase,
   StartRoomUseCase,
+  StartRoomV2UseCase,
+  type EngineV2StartPort,
   HoldPositionsUseCase,
   type CampaignRepository,
   type GameRunRepository,
@@ -20,6 +22,7 @@ import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
   CAMPAIGN_REPOSITORY,
+  ENGINE_V2_START_PORT,
   GAME_RUN_REPOSITORY,
   OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
@@ -50,6 +53,7 @@ export class RoomsController {
     @Inject(OUTBOX_PORT) private readonly outbox: OutboxPort,
     @Inject(CAMPAIGN_REPOSITORY) private readonly campaignRepository: CampaignRepository,
     @Inject(PILOT_POLICY) private readonly pilotPolicy: PilotPolicy,
+    @Inject(ENGINE_V2_START_PORT) private readonly engineV2Start: EngineV2StartPort,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -100,6 +104,19 @@ export class RoomsController {
       this.participationRepository,
       this.gameRunRepository,
     ).execute({ roomId });
+  }
+
+  /** TASK-106: Engine V2 start. Freezes the config (cap required) and creates the round windows. */
+  @Post("rooms/:roomId/start-v2")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  startV2(@Param("roomId") roomId: string, @Body() body: unknown): Promise<GameRoom> {
+    const input = parseWithSchema(StartRoomV2Schema, body);
+    return new StartRoomV2UseCase(this.roomRepository, this.engineV2Start).execute({
+      roomId,
+      config: input.config,
+      schedule: input.schedule,
+    });
   }
 
   @Post("rooms/:roomId/holds")

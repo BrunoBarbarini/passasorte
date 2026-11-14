@@ -56,6 +56,26 @@ export class PrismaParticipationRepository implements ParticipationRepository {
   }
 
   async transition(id: string, status: ParticipationStatus): Promise<Participation> {
+    if (status === "CONFIRMED") {
+      // DECISION-08: entrySequence is assigned atomically at confirmation, from a per-room
+      // counter. The UPDATE ... RETURNING row lock serializes concurrent confirmations of
+      // the same room, so the sequence has no gaps or duplicates among confirmed seats.
+      const row = await this.prisma.$transaction(async (tx) => {
+        const current = await tx.participation.findUniqueOrThrow({ where: { id } });
+        if (current.entrySequence !== null) {
+          return tx.participation.update({ where: { id }, data: { status } });
+        }
+        const counter = await tx.$queryRaw<{ seq: number }[]>`
+          update game_rooms set entry_sequence_counter = entry_sequence_counter + 1
+          where id = ${current.roomId}::uuid
+          returning entry_sequence_counter as seq`;
+        const seq = counter[0]?.seq;
+        if (seq === undefined)
+          throw new Error("Sala não encontrada ao atribuir a ordem de entrada.");
+        return tx.participation.update({ where: { id }, data: { status, entrySequence: seq } });
+      });
+      return toDomainParticipation(row);
+    }
     const row = await this.prisma.participation.update({ where: { id }, data: { status } });
     return toDomainParticipation(row);
   }

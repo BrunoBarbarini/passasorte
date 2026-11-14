@@ -12,7 +12,13 @@ interface CardProps extends ViewProps {
  * Superfície padrão de conteúdo: cantos suaves (radius.lg), fundo
  * branco e sombra discreta - "sombras suaves, sem brilho neon" (p.12).
  */
-export function Card({ accentColor, disabled = false, style, children, ...viewProps }: CardProps): React.JSX.Element {
+export function Card({
+  accentColor,
+  disabled = false,
+  style,
+  children,
+  ...viewProps
+}: CardProps): React.JSX.Element {
   return (
     <View
       {...viewProps}

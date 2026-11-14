@@ -71,13 +71,7 @@ export interface ExperienceView {
 }
 
 export type CampaignStatus =
-  | "DRAFT"
-  | "IN_REVIEW"
-  | "APPROVED"
-  | "SCHEDULED"
-  | "PUBLISHED"
-  | "ENDED"
-  | "CANCELLED";
+  "DRAFT" | "IN_REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "ENDED" | "CANCELLED";
 
 export const CAMPAIGN_STATUSES: CampaignStatus[] = [
   "DRAFT",

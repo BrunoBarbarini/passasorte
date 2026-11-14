@@ -60,8 +60,12 @@ export default function MerchantDetailPage() {
     try {
       const [m, locs, exps] = await Promise.all([
         apiRequest<MerchantView>(`/backoffice/merchants/${merchantId}`, { accessToken: token }),
-        apiRequest<MerchantLocationView[]>(`/merchants/${merchantId}/locations`, { accessToken: token }),
-        apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, { accessToken: token }),
+        apiRequest<MerchantLocationView[]>(`/merchants/${merchantId}/locations`, {
+          accessToken: token,
+        }),
+        apiRequest<ExperienceView[]>(`/backoffice/experiences?merchantId=${merchantId}`, {
+          accessToken: token,
+        }),
       ]);
       setMerchant(m);
       setLegalName(m.legalName);
@@ -212,10 +216,18 @@ export default function MerchantDetailPage() {
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Dados do merchant</h2>
           <form onSubmit={(e) => void handleUpdate(e)}>
             <Field label="Razão social" htmlFor="legalName">
-              <Input id="legalName" value={legalName} onChange={(e) => setLegalName(e.target.value)} />
+              <Input
+                id="legalName"
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+              />
             </Field>
             <Field label="Nome de exibição" htmlFor="displayName">
-              <Input id="displayName" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
             </Field>
             <Button type="submit" variant="secondary" loading={busy}>
               Salvar alterações
@@ -239,19 +251,44 @@ export default function MerchantDetailPage() {
           <form onSubmit={(e) => void handleAddLocation(e)}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: spacing.md }}>
               <Field label="Rótulo" htmlFor="locLabel">
-                <Input id="locLabel" required value={locLabel} onChange={(e) => setLocLabel(e.target.value)} />
+                <Input
+                  id="locLabel"
+                  required
+                  value={locLabel}
+                  onChange={(e) => setLocLabel(e.target.value)}
+                />
               </Field>
               <Field label="Endereço" htmlFor="locAddress">
-                <Input id="locAddress" required value={locAddress} onChange={(e) => setLocAddress(e.target.value)} />
+                <Input
+                  id="locAddress"
+                  required
+                  value={locAddress}
+                  onChange={(e) => setLocAddress(e.target.value)}
+                />
               </Field>
               <Field label="Cidade" htmlFor="locCity">
-                <Input id="locCity" required value={locCity} onChange={(e) => setLocCity(e.target.value)} />
+                <Input
+                  id="locCity"
+                  required
+                  value={locCity}
+                  onChange={(e) => setLocCity(e.target.value)}
+                />
               </Field>
               <Field label="Estado" htmlFor="locState">
-                <Input id="locState" required value={locState} onChange={(e) => setLocState(e.target.value)} />
+                <Input
+                  id="locState"
+                  required
+                  value={locState}
+                  onChange={(e) => setLocState(e.target.value)}
+                />
               </Field>
               <Field label="CEP" htmlFor="locPostal">
-                <Input id="locPostal" required value={locPostal} onChange={(e) => setLocPostal(e.target.value)} />
+                <Input
+                  id="locPostal"
+                  required
+                  value={locPostal}
+                  onChange={(e) => setLocPostal(e.target.value)}
+                />
               </Field>
             </div>
             <Button type="submit" variant="secondary" loading={busy}>
@@ -268,8 +305,12 @@ export default function MerchantDetailPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: spacing.lg }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Título</th>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Status</th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Título
+                  </th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Status
+                  </th>
                   <th />
                 </tr>
               </thead>
@@ -290,10 +331,20 @@ export default function MerchantDetailPage() {
           )}
           <form onSubmit={(e) => void handleCreateExperience(e)}>
             <Field label="Título" htmlFor="expTitle">
-              <Input id="expTitle" required value={expTitle} onChange={(e) => setExpTitle(e.target.value)} />
+              <Input
+                id="expTitle"
+                required
+                value={expTitle}
+                onChange={(e) => setExpTitle(e.target.value)}
+              />
             </Field>
             <Field label="Descrição" htmlFor="expDescription">
-              <Input id="expDescription" required value={expDescription} onChange={(e) => setExpDescription(e.target.value)} />
+              <Input
+                id="expDescription"
+                required
+                value={expDescription}
+                onChange={(e) => setExpDescription(e.target.value)}
+              />
             </Field>
             <Button type="submit" variant="secondary" loading={busy}>
               Criar experience

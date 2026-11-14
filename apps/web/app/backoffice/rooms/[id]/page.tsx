@@ -53,7 +53,10 @@ export default function RoomDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await apiRequest(`/rooms/${roomId}/${path}`, { method: "POST", accessToken: session.access_token });
+      await apiRequest(`/rooms/${roomId}/${path}`, {
+        method: "POST",
+        accessToken: session.access_token,
+      });
       await refresh();
     } catch (err) {
       setError(`${label}: ${err instanceof Error ? err.message : String(err)}`);
@@ -89,19 +92,33 @@ export default function RoomDetailPage() {
           <p style={{ margin: 0, color: colors.textMuted }}>Campanha: {room.campaignId}</p>
           <p style={{ margin: 0, color: colors.textMuted }}>Capacidade: {room.capacity}</p>
           <p style={{ margin: 0, color: colors.textMuted }}>Hold TTL: {room.holdTtlMs}ms</p>
-          <p style={{ margin: 0, color: colors.textMuted }}>Criada em: {new Date(room.createdAt).toLocaleString("pt-BR")}</p>
+          <p style={{ margin: 0, color: colors.textMuted }}>
+            Criada em: {new Date(room.createdAt).toLocaleString("pt-BR")}
+          </p>
         </Card>
 
         <Card style={{ marginBottom: spacing.lg }}>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Ações (TASK-024)</h2>
           <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>
-            <Button variant="secondary" disabled={busy || room.status !== "DRAFT"} onClick={() => void runAction("open", "Abrir sala")}>
+            <Button
+              variant="secondary"
+              disabled={busy || room.status !== "DRAFT"}
+              onClick={() => void runAction("open", "Abrir sala")}
+            >
               Abrir sala
             </Button>
-            <Button variant="secondary" disabled={busy || room.status !== "OPEN"} onClick={() => void runAction("lock-entries", "Travar entradas")}>
+            <Button
+              variant="secondary"
+              disabled={busy || room.status !== "OPEN"}
+              onClick={() => void runAction("lock-entries", "Travar entradas")}
+            >
               Travar entradas
             </Button>
-            <Button variant="secondary" disabled={busy || room.status !== "ENTRY_LOCKED"} onClick={() => void runAction("start", "Iniciar sala")}>
+            <Button
+              variant="secondary"
+              disabled={busy || room.status !== "ENTRY_LOCKED"}
+              onClick={() => void runAction("start", "Iniciar sala")}
+            >
               Iniciar sala
             </Button>
           </div>
@@ -109,7 +126,15 @@ export default function RoomDetailPage() {
 
         <Card>
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Configuração (JSON)</h2>
-          <pre style={{ fontSize: 12, overflowX: "auto", backgroundColor: "#F5F0E8", padding: spacing.md, borderRadius: 8 }}>
+          <pre
+            style={{
+              fontSize: 12,
+              overflowX: "auto",
+              backgroundColor: "#F5F0E8",
+              padding: spacing.md,
+              borderRadius: 8,
+            }}
+          >
             {JSON.stringify(
               {
                 gameConfig: room.gameConfig,

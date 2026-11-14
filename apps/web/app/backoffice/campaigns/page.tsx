@@ -4,7 +4,12 @@ import { Suspense, useCallback, useEffect, useState, type FormEvent } from "reac
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "../../../src/context/auth-context";
 import { apiRequest } from "../../../src/lib/api-client";
-import type { CampaignListPageView, CampaignView, ExperienceView, MerchantView } from "../../../src/types/api";
+import type {
+  CampaignListPageView,
+  CampaignView,
+  ExperienceView,
+  MerchantView,
+} from "../../../src/types/api";
 import { Nav } from "../../../src/components/Nav";
 import {
   Banner,
@@ -83,7 +88,9 @@ function CampaignsPageInner() {
     })
       .then(setExperiences)
       .catch((err: unknown) => {
-        setLoadError(err instanceof Error ? err.message : "Falha ao carregar experiences do merchant.");
+        setLoadError(
+          err instanceof Error ? err.message : "Falha ao carregar experiences do merchant.",
+        );
       });
   }, [session, merchantId]);
 
@@ -115,7 +122,10 @@ function CampaignsPageInner() {
     <>
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 900, margin: "0 auto" }}>
-        <PageHeader title="Campanhas" subtitle="FR-013..FR-017 — criação, aprovação, publicação e cancelamento." />
+        <PageHeader
+          title="Campanhas"
+          subtitle="FR-013..FR-017 — criação, aprovação, publicação e cancelamento."
+        />
 
         {loadError && <Banner tone="error">{loadError}</Banner>}
 
@@ -141,8 +151,16 @@ function CampaignsPageInner() {
               </Select>
             </Field>
             <Field label="Experience" htmlFor="experienceId">
-              <Select id="experienceId" required value={experienceId} onChange={(e) => setExperienceId(e.target.value)} disabled={!merchantId}>
-                <option value="">{merchantId ? "Selecione..." : "Escolha um merchant primeiro"}</option>
+              <Select
+                id="experienceId"
+                required
+                value={experienceId}
+                onChange={(e) => setExperienceId(e.target.value)}
+                disabled={!merchantId}
+              >
+                <option value="">
+                  {merchantId ? "Selecione..." : "Escolha um merchant primeiro"}
+                </option>
                 {experiences.map((exp) => (
                   <option key={exp.id} value={exp.id}>
                     {exp.title}
@@ -161,9 +179,20 @@ function CampaignsPageInner() {
         </Card>
 
         <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: spacing.md }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: spacing.md,
+            }}
+          >
             <h2 style={{ fontSize: 16, margin: 0 }}>Campanhas</h2>
-            <Select value={merchantId} onChange={(e) => setMerchantId(e.target.value)} style={{ width: 220 }}>
+            <Select
+              value={merchantId}
+              onChange={(e) => setMerchantId(e.target.value)}
+              style={{ width: 220 }}
+            >
               <option value="">Todos os merchants</option>
               {merchants.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -178,8 +207,12 @@ function CampaignsPageInner() {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Título</th>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Status</th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Título
+                  </th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Status
+                  </th>
                   <th />
                 </tr>
               </thead>

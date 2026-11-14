@@ -72,7 +72,10 @@ export function isMerchantAllowedInPilot(policy: PilotPolicy, merchantId: string
  * already-active rooms. Always true when the pilot is off or has no cap
  * configured.
  */
-export function hasActiveRoomCapacity(policy: PilotPolicy, currentActiveRoomCount: number): boolean {
+export function hasActiveRoomCapacity(
+  policy: PilotPolicy,
+  currentActiveRoomCount: number,
+): boolean {
   if (!policy.enabled || policy.maxActiveRooms === null) return true;
   return currentActiveRoomCount < policy.maxActiveRooms;
 }

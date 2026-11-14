@@ -70,7 +70,11 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
   if (!participation) {
     return (
       <ScreenContainer style={styles.centered}>
-        {error ? <Text style={styles.error}>{error}</Text> : <Text style={styles.note}>Carregando...</Text>}
+        {error ? (
+          <Text style={styles.error}>{error}</Text>
+        ) : (
+          <Text style={styles.note}>Carregando...</Text>
+        )}
       </ScreenContainer>
     );
   }
@@ -85,7 +89,8 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
           Posições: {participation.positions.map((p) => p.position).join(", ")}
         </Text>
         <Text style={styles.line}>
-          Movimentos: {participation.movementAllowanceUsed}/{participation.movementAllowanceTotal} usados
+          Movimentos: {participation.movementAllowanceUsed}/{participation.movementAllowanceTotal}{" "}
+          usados
         </Text>
       </Card>
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -110,8 +115,8 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
         </View>
       ) : (
         <Text style={styles.note}>
-          A sala ainda não está em rodada ativa para movimentos (isso depende do agendador da
-          Fase 5, ainda não implementado).
+          A sala ainda não está em rodada ativa para movimentos (isso depende do agendador da Fase
+          5, ainda não implementado).
         </Text>
       )}
 

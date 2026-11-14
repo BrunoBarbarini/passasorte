@@ -57,9 +57,9 @@ export function FinalLockScreen({ route }: Props): React.JSX.Element {
             </Text>
           </Card>
           <Text style={styles.note}>
-            O travamento automático da estratégia final é uma funcionalidade da Fase 5
-            (Operação Agendada do Jogo) e ainda não está implementada - por enquanto, o último
-            movimento enviado na tela de jogo é o que vale.
+            O travamento automático da estratégia final é uma funcionalidade da Fase 5 (Operação
+            Agendada do Jogo) e ainda não está implementada - por enquanto, o último movimento
+            enviado na tela de jogo é o que vale.
           </Text>
         </>
       ) : (

@@ -145,7 +145,12 @@ const styles = StyleSheet.create({
   note: { ...typography.body, color: colors.textMuted, textAlign: "center" },
   list: { flex: 1 },
   listContent: { padding: spacing.lg, paddingTop: spacing.sm, flexGrow: 1 },
-  empty: { ...typography.body, color: colors.textMuted, textAlign: "center", marginTop: spacing.xxl },
+  empty: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: spacing.xxl,
+  },
   separator: { height: spacing.md },
   cardTitle: { ...typography.h3, color: colors.navy },
   cardSubtitle: { ...typography.small, color: colors.textMuted, marginTop: spacing.xs },

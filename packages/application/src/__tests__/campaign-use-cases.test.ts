@@ -1,12 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await -- in-memory test fakes intentionally implement async interfaces synchronously */
 import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import type {
-  Campaign,
-  Experience,
-  Merchant,
-  PilotPolicy,
-} from "@passasorte/domain";
+import type { Campaign, Experience, Merchant, PilotPolicy } from "@passasorte/domain";
 import type {
   CampaignListFilter,
   CampaignListPage,
@@ -334,7 +329,11 @@ describe("TransitionCampaignUseCase", () => {
     );
 
     await expect(
-      useCase.execute({ campaignId: campaign.id, targetStatus: "CANCELLED", actorUserId: "actor-1" }),
+      useCase.execute({
+        campaignId: campaign.id,
+        targetStatus: "CANCELLED",
+        actorUserId: "actor-1",
+      }),
     ).rejects.toBeInstanceOf(ValidationError);
   });
 

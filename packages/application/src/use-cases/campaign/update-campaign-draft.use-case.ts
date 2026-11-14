@@ -1,6 +1,9 @@
 import { isCampaignEditable, type Campaign } from "@passasorte/domain";
 import type { AuditLogPort } from "../../ports/audit-log.port.js";
-import type { CampaignRepository, UpdateCampaignDraftInput } from "../../ports/campaign-repository.port.js";
+import type {
+  CampaignRepository,
+  UpdateCampaignDraftInput,
+} from "../../ports/campaign-repository.port.js";
 import { DomainError, NotFoundError, ValidationError } from "../../errors.js";
 
 export interface UpdateCampaignDraftCommand extends UpdateCampaignDraftInput {

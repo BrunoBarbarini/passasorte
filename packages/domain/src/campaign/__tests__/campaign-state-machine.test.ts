@@ -24,7 +24,13 @@ describe("campaign state machine", () => {
   });
 
   it("allows cancellation from every non-terminal status", () => {
-    const nonTerminal: CampaignStatus[] = ["DRAFT", "IN_REVIEW", "APPROVED", "SCHEDULED", "PUBLISHED"];
+    const nonTerminal: CampaignStatus[] = [
+      "DRAFT",
+      "IN_REVIEW",
+      "APPROVED",
+      "SCHEDULED",
+      "PUBLISHED",
+    ];
     for (const status of nonTerminal) {
       expect(canTransitionCampaignStatus(status, "CANCELLED")).toBe(true);
     }

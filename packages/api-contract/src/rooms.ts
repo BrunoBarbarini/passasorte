@@ -54,3 +54,24 @@ export const HoldPositionsSchema = z.object({
   positions: z.array(z.number().int().nonnegative()).min(1),
 });
 export type HoldPositionsBody = z.infer<typeof HoldPositionsSchema>;
+
+/**
+ * TASK-106: start of an Engine V2 room. The operator chooses the per-round cap
+ * (BR-089, required, positive) and the round schedule; nothing here has a default (BR-068).
+ */
+export const StartRoomV2Schema = z.object({
+  config: z.object({
+    winningZoneSize: z.number().int().min(1),
+    maxMovementsPerRound: z.number().int().min(1),
+  }),
+  schedule: z
+    .array(
+      z.object({
+        roundNo: z.number().int().min(1),
+        windowOpensAt: z.coerce.date(),
+        windowClosesAt: z.coerce.date(),
+      }),
+    )
+    .min(1),
+});
+export type StartRoomV2Body = z.infer<typeof StartRoomV2Schema>;

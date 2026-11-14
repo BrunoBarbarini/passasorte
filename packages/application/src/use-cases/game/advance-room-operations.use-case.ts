@@ -75,6 +75,11 @@ export class AdvanceRoomOperationsUseCase {
       throw new NotFoundError("GameRoom", command.roomId);
     }
 
+    // Engine V2 rooms are advanced by ResolveRoundV2UseCase (round windows), never by this legacy path.
+    if (room.engineV2Config) {
+      return { room, advanced: false };
+    }
+
     if (room.status === "RUNNING") {
       return this.maybeEnterFinalLock(room, now);
     }

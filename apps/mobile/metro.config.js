@@ -51,11 +51,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   const isRelative = moduleName.startsWith("./") || moduleName.startsWith("../");
   if (isRelative && (moduleName.endsWith(".js") || moduleName.endsWith(".jsx"))) {
     try {
-      return context.resolveRequest(
-        context,
-        moduleName.replace(/\.jsx?$/, ""),
-        platform,
-      );
+      return context.resolveRequest(context, moduleName.replace(/\.jsx?$/, ""), platform);
     } catch {
       // Fall through to the default resolver so the original, more useful
       // error (naming the extensions it tried) is what actually surfaces.

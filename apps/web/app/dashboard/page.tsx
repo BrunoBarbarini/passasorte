@@ -98,7 +98,10 @@ export default function DashboardPage() {
     <>
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 1000, margin: "0 auto" }}>
-        <PageHeader title="Operações" subtitle="Fila de eventos e ciclo de vida das salas em andamento." />
+        <PageHeader
+          title="Operações"
+          subtitle="Fila de eventos e ciclo de vida das salas em andamento."
+        />
 
         {loadError && <Banner tone="error">{loadError}</Banner>}
 
@@ -112,7 +115,10 @@ export default function DashboardPage() {
               onClick={() =>
                 void runAction(
                   () =>
-                    apiRequest("/operations/dispatch-outbox", { method: "POST", accessToken: token }),
+                    apiRequest("/operations/dispatch-outbox", {
+                      method: "POST",
+                      accessToken: token,
+                    }),
                   "Despachar outbox",
                 )
               }
@@ -124,7 +130,8 @@ export default function DashboardPage() {
               disabled={busy}
               onClick={() =>
                 void runAction(
-                  () => apiRequest("/operations/expire-holds", { method: "POST", accessToken: token }),
+                  () =>
+                    apiRequest("/operations/expire-holds", { method: "POST", accessToken: token }),
                   "Expirar reservas",
                 )
               }
@@ -138,7 +145,14 @@ export default function DashboardPage() {
 
         {MONITORED_STATUSES.map((status) => (
           <Card key={status} style={{ marginBottom: spacing.lg }}>
-            <div style={{ display: "flex", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: spacing.sm,
+                marginBottom: spacing.md,
+              }}
+            >
               <StatusPill status={status} />
             </div>
             {(roomsByStatus[status] ?? []).length === 0 ? (
@@ -147,9 +161,15 @@ export default function DashboardPage() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Sala</th>
-                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Capacidade</th>
-                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Criada em</th>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                      Sala
+                    </th>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                      Capacidade
+                    </th>
+                    <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                      Criada em
+                    </th>
                     <th />
                   </tr>
                 </thead>

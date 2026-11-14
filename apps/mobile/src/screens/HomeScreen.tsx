@@ -96,7 +96,10 @@ export function HomeScreen({ navigation }: Props): React.JSX.Element {
             <Card accentColor={colors.coral}>
               <Text style={styles.cardTitle}>{item.title}</Text>
               <View style={styles.cardFooter}>
-                <Pill label={CAMPAIGN_STATUS_LABEL[item.status]} tone={CAMPAIGN_STATUS_TONE[item.status]} />
+                <Pill
+                  label={CAMPAIGN_STATUS_LABEL[item.status]}
+                  tone={CAMPAIGN_STATUS_TONE[item.status]}
+                />
               </View>
             </Card>
           </Pressable>
@@ -124,7 +127,12 @@ const styles = StyleSheet.create({
   error: { color: colors.danger, marginHorizontal: spacing.lg, marginBottom: spacing.sm },
   list: { flex: 1 },
   listContent: { padding: spacing.lg, paddingTop: spacing.sm, flexGrow: 1 },
-  empty: { ...typography.body, color: colors.textMuted, textAlign: "center", marginTop: spacing.xxl },
+  empty: {
+    ...typography.body,
+    color: colors.textMuted,
+    textAlign: "center",
+    marginTop: spacing.xxl,
+  },
   separator: { height: spacing.md },
   cardTitle: { ...typography.h3, color: colors.navy },
   cardFooter: { marginTop: spacing.md, flexDirection: "row" },

@@ -6,7 +6,18 @@ import { useAuth } from "../../../../src/context/auth-context";
 import { apiRequest } from "../../../../src/lib/api-client";
 import type { ExperienceStatus, ExperienceView } from "../../../../src/types/api";
 import { Nav } from "../../../../src/components/Nav";
-import { Banner, Button, Card, Field, Input, LinkButton, PageHeader, Select, StatusPill, Textarea } from "../../../../src/components/ui";
+import {
+  Banner,
+  Button,
+  Card,
+  Field,
+  Input,
+  LinkButton,
+  PageHeader,
+  Select,
+  StatusPill,
+  Textarea,
+} from "../../../../src/components/ui";
 import { spacing } from "../../../../src/theme/tokens";
 
 const STATUSES: ExperienceStatus[] = ["DRAFT", "ACTIVE", "ARCHIVED"];
@@ -88,10 +99,7 @@ export default function ExperienceDetailPage() {
     <>
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 700, margin: "0 auto" }}>
-        <PageHeader
-          title={experience.title}
-          actions={<StatusPill status={experience.status} />}
-        />
+        <PageHeader title={experience.title} actions={<StatusPill status={experience.status} />} />
         {loadError && <Banner tone="error">{loadError}</Banner>}
         {error && <Banner tone="error">{error}</Banner>}
         <Card style={{ marginBottom: spacing.lg }}>
@@ -100,10 +108,18 @@ export default function ExperienceDetailPage() {
               <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
             </Field>
             <Field label="Descrição" htmlFor="description">
-              <Textarea id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
             </Field>
             <Field label="Status" htmlFor="status">
-              <Select id="status" value={status} onChange={(e) => setStatus(e.target.value as ExperienceStatus)}>
+              <Select
+                id="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as ExperienceStatus)}
+              >
                 {STATUSES.map((s) => (
                   <option key={s} value={s}>
                     {s}
@@ -116,9 +132,13 @@ export default function ExperienceDetailPage() {
             </Button>
           </form>
         </Card>
-        <LinkButton href={`/backoffice/merchants/${experience.merchantId}`}>← Voltar ao merchant</LinkButton>
-        {" "}
-        <LinkButton href={`/backoffice/campaigns?merchantId=${experience.merchantId}&experienceId=${experienceId}`} variant="primary">
+        <LinkButton href={`/backoffice/merchants/${experience.merchantId}`}>
+          ← Voltar ao merchant
+        </LinkButton>{" "}
+        <LinkButton
+          href={`/backoffice/campaigns?merchantId=${experience.merchantId}&experienceId=${experienceId}`}
+          variant="primary"
+        >
           Criar campanha com essa experience
         </LinkButton>
       </main>

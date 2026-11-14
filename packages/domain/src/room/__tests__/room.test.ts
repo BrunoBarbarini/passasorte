@@ -17,8 +17,19 @@ describe("room state machine (CLAUDE.md #7)", () => {
     expect(canTransitionRoomStatus("RESOLVING", "COMPLETED")).toBe(true);
   });
 
+  it("allows RUNNING -> RESOLVING for Engine V2 rooms (no final lock, BR-067)", () => {
+    expect(canTransitionRoomStatus("RUNNING", "RESOLVING")).toBe(true);
+  });
+
   it("allows cancellation from any non-terminal status (BR-045)", () => {
-    const nonTerminal = ["DRAFT", "OPEN", "ENTRY_LOCKED", "RUNNING", "FINAL_LOCK", "RESOLVING"] as const;
+    const nonTerminal = [
+      "DRAFT",
+      "OPEN",
+      "ENTRY_LOCKED",
+      "RUNNING",
+      "FINAL_LOCK",
+      "RESOLVING",
+    ] as const;
     for (const from of nonTerminal) {
       expect(canTransitionRoomStatus(from, "CANCELLED")).toBe(true);
     }

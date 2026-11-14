@@ -3,6 +3,8 @@ import {
   DispatchOutboxEventsUseCase,
   ExpireBenefitsUseCase,
   ExpirePositionHoldsUseCase,
+  ResolveRoundV2UseCase,
+  type EngineV2ResolutionPort,
   type AnalyticsPort,
   type BenefitLedgerRepository,
   type GameRunRepository,
@@ -21,6 +23,7 @@ export interface SchedulerDeps {
   participationRepository: ParticipationRepository;
   positionHoldRepository: PositionHoldRepository;
   gameRunRepository: GameRunRepository;
+  engineV2Resolution: EngineV2ResolutionPort;
   outbox: OutboxPort;
   outboxReader: OutboxReaderPort;
   notificationRepository: NotificationRepository;
@@ -84,6 +87,32 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
     return;
   }
 
+  // TASK-106: Engine V2 rooms advance by round windows. Rounds of a room are resolved
+  // strictly in order; failures are logged and retried on the next tick (idempotent).
+  const dueRounds = await deps.engineV2Resolution.findDueRounds(new Date(), 20);
+  const resolveRound = new ResolveRoundV2UseCase(deps.engineV2Resolution);
+  for (const due of dueRounds) {
+    try {
+      const result = await resolveRound.execute({ roundId: due.roundId });
+      if (result.status === "RESOLVED") {
+        deps.logger.info(
+          {
+            operation: "resolve_round",
+            roomId: due.roomId,
+            roundNo: result.roundNo,
+            completed: result.completed,
+          },
+          "Resolved engine V2 round",
+        );
+      }
+    } catch (error) {
+      deps.logger.error(
+        { operation: "resolve_round", roomId: due.roomId, roundNo: due.roundNo, err: error },
+        "Failed to resolve engine V2 round",
+      );
+    }
+  }
+
   const advanceUseCase = new AdvanceRoomOperationsUseCase(
     deps.roomRepository,
     deps.participationRepository,
@@ -95,6 +124,7 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
   const finalLockRooms = await deps.roomRepository.listByStatus("FINAL_LOCK");
 
   for (const room of [...runningRooms, ...finalLockRooms]) {
+    if (room.engineV2Config) continue;
     try {
       const result = await advanceUseCase.execute({ roomId: room.id });
       if (result.advanced) {

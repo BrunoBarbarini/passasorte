@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type {
+  gameV2,
   GameConfigSnapshot,
   GameRoom,
   ParticipationPackage,
@@ -40,7 +41,7 @@ function toStoredPackage(pkg: ParticipationPackage): StoredParticipationPackage 
   };
 }
 
-function toDomainRoom(row: PrismaGameRoom): GameRoom {
+export function toDomainRoom(row: PrismaGameRoom): GameRoom {
   return {
     id: row.id,
     campaignId: row.campaignId,
@@ -51,6 +52,7 @@ function toDomainRoom(row: PrismaGameRoom): GameRoom {
       row.participationPackages as unknown as StoredParticipationPackage[]
     ).map(toDomainPackage),
     operationsConfig: row.operationsConfig as unknown as RoomOperationsConfig,
+    engineV2Config: row.engineV2Config as unknown as gameV2.GameConfigV2 | null,
     status: row.status,
     createdAt: row.createdAt,
     finalLockedAt: row.finalLockedAt,

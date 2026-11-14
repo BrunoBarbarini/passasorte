@@ -19,3 +19,41 @@ export function assertRoundCapDefined(config: Pick<GameConfigV2, "maxMovementsPe
     );
   }
 }
+
+export interface RoundScheduleEntry {
+  readonly roundNo: number;
+  readonly windowOpensAt: Date;
+  readonly windowClosesAt: Date;
+}
+
+/**
+ * The schedule is chosen by the operator per campaign (no default, BR-068). We only
+ * validate its shape: at least one round, numbered 1..n, each window non-empty and
+ * windows never overlapping (DECISION-16: collective window per round).
+ */
+export function assertValidRoundSchedule(schedule: readonly RoundScheduleEntry[]): void {
+  if (schedule.length === 0) {
+    throw new GameEngineError("INVALID_ROUND", "O cronograma precisa ter ao menos uma rodada.");
+  }
+  let previousClose: number | null = null;
+  schedule.forEach((entry, index) => {
+    const opens = entry.windowOpensAt.getTime();
+    const closes = entry.windowClosesAt.getTime();
+    if (entry.roundNo !== index + 1) {
+      throw new GameEngineError(
+        "INVALID_ROUND",
+        "As rodadas devem ser numeradas em sequência a partir de 1.",
+      );
+    }
+    if (!Number.isFinite(opens) || !Number.isFinite(closes) || closes <= opens) {
+      throw new GameEngineError(
+        "INVALID_ROUND",
+        "Cada janela de rodada deve terminar depois de começar.",
+      );
+    }
+    if (previousClose !== null && opens < previousClose) {
+      throw new GameEngineError("INVALID_ROUND", "As janelas de rodada não podem se sobrepor.");
+    }
+    previousClose = closes;
+  });
+}

@@ -1,6 +1,9 @@
 import { canAttachToNewCampaign, canSponsorNewCampaign, type Campaign } from "@passasorte/domain";
 import type { AuditLogPort } from "../../ports/audit-log.port.js";
-import type { CampaignRepository, CreateCampaignInput } from "../../ports/campaign-repository.port.js";
+import type {
+  CampaignRepository,
+  CreateCampaignInput,
+} from "../../ports/campaign-repository.port.js";
 import type { ExperienceRepository } from "../../ports/experience-repository.port.js";
 import type { MerchantRepository } from "../../ports/merchant-repository.port.js";
 import { DomainError, NotFoundError, ValidationError } from "../../errors.js";

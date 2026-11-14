@@ -85,7 +85,10 @@ export default function MerchantsPage() {
     <>
       <Nav />
       <main style={{ padding: spacing.xl, maxWidth: 900, margin: "0 auto" }}>
-        <PageHeader title="Merchants" subtitle="FR-010 — cadastro e gestão de comerciantes parceiros." />
+        <PageHeader
+          title="Merchants"
+          subtitle="FR-010 — cadastro e gestão de comerciantes parceiros."
+        />
 
         {loadError && <Banner tone="error">{loadError}</Banner>}
 
@@ -93,10 +96,20 @@ export default function MerchantsPage() {
           <h2 style={{ fontSize: 16, marginTop: 0 }}>Novo merchant</h2>
           <form onSubmit={(e) => void handleCreate(e)}>
             <Field label="Razão social" htmlFor="legalName">
-              <Input id="legalName" required value={legalName} onChange={(e) => setLegalName(e.target.value)} />
+              <Input
+                id="legalName"
+                required
+                value={legalName}
+                onChange={(e) => setLegalName(e.target.value)}
+              />
             </Field>
             <Field label="Nome de exibição" htmlFor="displayName">
-              <Input id="displayName" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+              <Input
+                id="displayName"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
             </Field>
             {error && <Banner tone="error">{error}</Banner>}
             <Button type="submit" loading={busy}>
@@ -114,7 +127,9 @@ export default function MerchantsPage() {
               <thead>
                 <tr>
                   <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Nome</th>
-                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>Status</th>
+                  <th style={{ textAlign: "left", color: colors.textMuted, fontSize: 12 }}>
+                    Status
+                  </th>
                   <th />
                 </tr>
               </thead>

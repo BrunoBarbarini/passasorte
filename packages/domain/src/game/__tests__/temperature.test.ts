@@ -56,9 +56,9 @@ describe("temperature bands", () => {
   });
 
   it("rejects bands that don't reach 1", () => {
-    expect(() =>
-      assertValidTemperatureBands([{ name: "SO", maxNormalizedDistance: 0.5 }]),
-    ).toThrow(InvalidTemperatureBandsError);
+    expect(() => assertValidTemperatureBands([{ name: "SO", maxNormalizedDistance: 0.5 }])).toThrow(
+      InvalidTemperatureBandsError,
+    );
   });
 
   it("rejects non-ascending bands", () => {

@@ -11,13 +11,7 @@
  * (CLAUDE.md #58) and must not be invented here.
  */
 export type CampaignStatus =
-  | "DRAFT"
-  | "IN_REVIEW"
-  | "APPROVED"
-  | "SCHEDULED"
-  | "PUBLISHED"
-  | "ENDED"
-  | "CANCELLED";
+  "DRAFT" | "IN_REVIEW" | "APPROVED" | "SCHEDULED" | "PUBLISHED" | "ENDED" | "CANCELLED";
 
 const FORWARD_TRANSITIONS: Record<CampaignStatus, readonly CampaignStatus[]> = {
   DRAFT: ["IN_REVIEW", "CANCELLED"],
@@ -33,10 +27,7 @@ export function isTerminalCampaignStatus(status: CampaignStatus): boolean {
   return status === "ENDED" || status === "CANCELLED";
 }
 
-export function canTransitionCampaignStatus(
-  from: CampaignStatus,
-  to: CampaignStatus,
-): boolean {
+export function canTransitionCampaignStatus(from: CampaignStatus, to: CampaignStatus): boolean {
   return FORWARD_TRANSITIONS[from].includes(to);
 }
 
@@ -51,10 +42,7 @@ export class InvalidCampaignTransitionError extends Error {
 }
 
 /** Throws InvalidCampaignTransitionError when the move is not legal. */
-export function assertCampaignTransition(
-  from: CampaignStatus,
-  to: CampaignStatus,
-): void {
+export function assertCampaignTransition(from: CampaignStatus, to: CampaignStatus): void {
   if (!canTransitionCampaignStatus(from, to)) {
     throw new InvalidCampaignTransitionError(from, to);
   }

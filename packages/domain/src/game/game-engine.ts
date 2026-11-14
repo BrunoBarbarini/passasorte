@@ -161,9 +161,9 @@ export function createGameEngineSimulationV1(
         });
       });
 
-      const finalStates: FinalParticipantState[] = Array.from(
-        positionsByParticipant.entries(),
-      ).map(([participationId, positions]) => ({ participationId, finalPositions: positions }));
+      const finalStates: FinalParticipantState[] = Array.from(positionsByParticipant.entries()).map(
+        ([participationId, positions]) => ({ participationId, finalPositions: positions }),
+      );
 
       const winners = strategies.winnerSelection.selectWinners({ finalStates, sorteZone: zone });
 

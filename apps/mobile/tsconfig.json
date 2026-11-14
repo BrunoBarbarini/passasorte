@@ -1,9 +1,7 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": [
-      "ES2022"
-    ],
+    "lib": ["ES2022"],
     "jsx": "react-native",
     "module": "ESNext",
     "moduleResolution": "bundler",
@@ -18,14 +16,8 @@
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,
     "noEmit": true,
-    "types": [
-      "react",
-      "node"
-    ]
+    "types": ["react", "node"]
   },
-  "include": [
-    "src",
-    "App.tsx"
-  ],
+  "include": ["src", "App.tsx"],
   "extends": "expo/tsconfig.base"
 }

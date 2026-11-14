@@ -593,6 +593,9 @@ model GameRound {
   resolutionOrderPolicy String?   @map("resolution_order_policy")
   luckPositionBefore    Int?      @map("luck_position_before")
   luckPositionAfter     Int?      @map("luck_position_after")
+  /// ReplayStep[] of this round (TASK-106), written once at resolution.
+  resolutionSteps       Json?     @map("resolution_steps")
+  stateHashAfter        String?   @map("state_hash_after")
   createdAt             DateTime  @default(now()) @map("created_at")
 
   room        GameRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
@@ -634,9 +637,10 @@ model RoundAction {
   roundId            String    @map("round_id") @db.Uuid
   participationId    String    @map("participation_id") @db.Uuid
   entrySequence      Int       @map("entry_sequence")
-  kind               String
+  /// null only when outcome = SKIPPED (check constraint in SQL).
+  kind               String?
   credits            Int
-  executionType      String    @map("execution_type")
+  executionType      String?   @map("execution_type")
   outcome            String    @default("APPLIED")
   skipReason         String?   @map("skip_reason")
   submissionId       String?   @map("submission_id") @db.Uuid

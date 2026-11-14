@@ -37,7 +37,9 @@ export function PositionSelectionScreen({ route, navigation }: Props): React.JSX
   const { session } = useAuth();
   const [room, setRoom] = useState<GameRoom | undefined>(undefined);
   const [positions, setPositions] = useState<PositionState[]>([]);
-  const [selectedPackage, setSelectedPackage] = useState<ParticipationPackage | undefined>(undefined);
+  const [selectedPackage, setSelectedPackage] = useState<ParticipationPackage | undefined>(
+    undefined,
+  );
   const [selected, setSelected] = useState<number[]>([]);
   const [error, setError] = useState<string | undefined>(undefined);
   const [submitting, setSubmitting] = useState(false);
@@ -180,7 +182,12 @@ export function PositionSelectionScreen({ route, navigation }: Props): React.JSX
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: spacing.lg },
-  sectionTitle: { ...typography.h3, color: colors.navy, marginTop: spacing.xl, marginBottom: spacing.md },
+  sectionTitle: {
+    ...typography.h3,
+    color: colors.navy,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
   error: { color: colors.danger, marginBottom: spacing.sm },
   banner: {
     backgroundColor: "#FCE7D6",

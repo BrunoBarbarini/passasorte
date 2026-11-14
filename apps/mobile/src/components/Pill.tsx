@@ -2,7 +2,8 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { colors, radius, spacing, typography } from "../theme/tokens.js";
 
-export type PillTone = "navy" | "territory" | "violet" | "coral" | "amber" | "aqua" | "neutral" | "danger";
+export type PillTone =
+  "navy" | "territory" | "violet" | "coral" | "amber" | "aqua" | "neutral" | "danger";
 
 const TONE_COLOR: Record<PillTone, string> = {
   navy: colors.navy,
@@ -21,7 +22,13 @@ const TONE_COLOR: Record<PillTone, string> = {
  * campanha, benefício, participação) - não introduz nenhum status novo,
  * só dá cor de marca a valores que a API já retorna.
  */
-export function Pill({ label, tone = "neutral" }: { label: string; tone?: PillTone }): React.JSX.Element {
+export function Pill({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: PillTone;
+}): React.JSX.Element {
   return (
     <View style={[styles.pill, { backgroundColor: TONE_COLOR[tone] }]}>
       <Text style={styles.text}>{label}</Text>

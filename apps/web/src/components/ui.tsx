@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import type {
+  AnchorHTMLAttributes,
+  ButtonHTMLAttributes,
+  InputHTMLAttributes,
+  ReactNode,
+  SelectHTMLAttributes,
+  TextareaHTMLAttributes,
+} from "react";
 import { colors, radius, spacing } from "../theme/tokens";
 
 /**
@@ -38,7 +45,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** p.13: "Participar" (sólido, coral) e "Ver experiência" (contorno, violeta). "danger" is this app's own addition (cancel/deactivate actions), kept outside the brand palette per the design system's own rule of never using red/green for game meaning. */
-export function Button({ variant = "primary", loading, disabled, style, children, ...rest }: ButtonProps) {
+export function Button({
+  variant = "primary",
+  loading,
+  disabled,
+  style,
+  children,
+  ...rest
+}: ButtonProps) {
   const isPrimary = variant === "primary";
   const isDanger = variant === "danger";
   const base: React.CSSProperties = {
@@ -146,10 +160,27 @@ const fieldStyle: React.CSSProperties = {
   backgroundColor: colors.white,
 };
 
-export function Field({ label, htmlFor, children }: { label: string; htmlFor: string; children: ReactNode }) {
+export function Field({
+  label,
+  htmlFor,
+  children,
+}: {
+  label: string;
+  htmlFor: string;
+  children: ReactNode;
+}) {
   return (
     <div style={{ marginBottom: spacing.lg }}>
-      <label htmlFor={htmlFor} style={{ display: "block", marginBottom: spacing.xs, fontSize: 13, fontWeight: 600, color: colors.territory }}>
+      <label
+        htmlFor={htmlFor}
+        style={{
+          display: "block",
+          marginBottom: spacing.xs,
+          fontSize: 13,
+          fontWeight: 600,
+          color: colors.territory,
+        }}
+      >
         {label}
       </label>
       {children}
@@ -169,7 +200,15 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} style={{ ...fieldStyle, ...props.style }} />;
 }
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
   return (
     <div
       style={{
@@ -185,7 +224,9 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
         <h1 style={{ fontSize: 28, fontWeight: 700 }}>{title}</h1>
         {subtitle && <p style={{ color: colors.textMuted, margin: 0 }}>{subtitle}</p>}
       </div>
-      {actions && <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>{actions}</div>}
+      {actions && (
+        <div style={{ display: "flex", gap: spacing.sm, flexWrap: "wrap" }}>{actions}</div>
+      )}
     </div>
   );
 }
@@ -194,7 +235,13 @@ export function EmptyState({ label }: { label: string }) {
   return <p style={{ color: colors.textMuted, fontStyle: "italic" }}>{label}</p>;
 }
 
-export function Banner({ tone = "info", children }: { tone?: "info" | "error"; children: ReactNode }) {
+export function Banner({
+  tone = "info",
+  children,
+}: {
+  tone?: "info" | "error";
+  children: ReactNode;
+}) {
   return (
     <div
       style={{

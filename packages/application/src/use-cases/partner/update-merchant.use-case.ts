@@ -1,6 +1,9 @@
 import type { Merchant } from "@passasorte/domain";
 import type { AuditLogPort } from "../../ports/audit-log.port.js";
-import type { MerchantRepository, UpdateMerchantInput } from "../../ports/merchant-repository.port.js";
+import type {
+  MerchantRepository,
+  UpdateMerchantInput,
+} from "../../ports/merchant-repository.port.js";
 import { NotFoundError, ValidationError } from "../../errors.js";
 
 export interface UpdateMerchantCommand extends UpdateMerchantInput {
