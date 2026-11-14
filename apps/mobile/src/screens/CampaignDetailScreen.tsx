@@ -15,6 +15,8 @@ const ROOM_STATUS_LABEL: Record<RoomStatus, string> = {
   DRAFT: "Em preparação",
   OPEN: "Aberta para participação",
   ENTRY_LOCKED: "Entradas encerradas",
+  POSITION_SELECTION: "Escolhendo posições",
+  READY: "Pronta para começar",
   RUNNING: "Em andamento",
   FINAL_LOCK: "Fase final",
   RESOLVING: "Apurando resultado",
@@ -29,6 +31,8 @@ const ROOM_STATUS_TONE: Record<RoomStatus, PillTone> = {
   DRAFT: "neutral",
   OPEN: "aqua",
   ENTRY_LOCKED: "amber",
+  POSITION_SELECTION: "amber",
+  READY: "aqua",
   RUNNING: "violet",
   FINAL_LOCK: "coral",
   RESOLVING: "territory",
@@ -72,10 +76,13 @@ export function CampaignDetailScreen({ route, navigation }: Props): React.JSX.El
         ListEmptyComponent={<Text style={styles.empty}>Nenhuma sala publicada ainda.</Text>}
         renderItem={({ item }) => (
           <Pressable
-            disabled={item.status !== "OPEN"}
-            onPress={() => navigation.navigate("PositionSelection", { roomId: item.id })}
+            disabled={item.status === "DRAFT" || item.status === "CANCELLED"}
+            onPress={() => navigation.navigate("RoomEntry", { roomId: item.id })}
           >
-            <Card disabled={item.status !== "OPEN"} accentColor={colors.violet}>
+            <Card
+              disabled={item.status === "DRAFT" || item.status === "CANCELLED"}
+              accentColor={colors.violet}
+            >
               <Text style={styles.cardTitle}>Sala {item.id.slice(0, 8)}</Text>
               <Text style={styles.cardSubtitle}>capacidade {item.capacity}</Text>
               <View style={styles.cardFooter}>

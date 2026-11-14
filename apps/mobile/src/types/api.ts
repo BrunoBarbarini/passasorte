@@ -123,6 +123,7 @@ export interface Participation {
   status: ParticipationStatus;
   movementAllowanceTotal: number;
   movementAllowanceUsed: number;
+  autoAction?: AutoAction;
   createdAt: string;
 }
 
@@ -153,6 +154,49 @@ export interface Benefit {
 export interface ListMyBenefitsResponse {
   balanceMinorUnits: number;
   benefits: Benefit[];
+}
+
+export type TemperatureLevel = "CONGELANDO" | "FRIO" | "MORNO" | "QUENTE" | "MUITO_QUENTE";
+
+export type AutoAction = "NONE" | "LEFT" | "RIGHT" | "STAY";
+export type RoundActionKind = "LEFT" | "RIGHT" | "STAY";
+
+/** GET /rooms/{id}/position-selection (TASK-075). */
+export interface PositionSelectionView {
+  serverTime: string;
+  status: RoomStatus;
+  boardSize: number | null;
+  takenPositions: number[];
+  pickWindowMs: number | null;
+  currentTurn: { participationId: string; positionCount: number; deadline: string } | null;
+  picked?: number;
+  total?: number;
+}
+
+/**
+ * GET /participations/{id}/game-state. The server never sends the Sorte position nor the exact
+ * distance (BR-090): only the temperature level + its pt-BR label.
+ */
+export interface ParticipantGameState {
+  serverTime: string;
+  participationId: string;
+  roomId: string;
+  roomStatus: RoomStatus;
+  participationStatus: ParticipationStatus;
+  positions: number[];
+  autoAction: AutoAction;
+  movements: { total: number; used: number; remaining: number };
+  temperature: { level: TemperatureLevel; label: string } | null;
+  maxMovementsPerRound: number | null;
+  round: {
+    roundNo: number;
+    totalRounds: number;
+    windowOpensAt: string;
+    windowClosesAt: string;
+    phase: "UPCOMING" | "OPEN" | "RESOLVING";
+  } | null;
+  myAction: { kind: RoundActionKind; credits: number } | null;
+  result: { won: boolean; winningPositions: number[] } | null;
 }
 
 /** Server error envelope (CLAUDE.md #16) - every 4xx/5xx apps/api response follows this shape. */

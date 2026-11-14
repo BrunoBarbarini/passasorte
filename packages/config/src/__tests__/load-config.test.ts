@@ -106,4 +106,16 @@ describe("loadConfig", () => {
     expect(config.pilot.allowedMerchantIds).toEqual(["merchant-a", "merchant-b"]);
     expect(config.pilot.maxActiveRooms).toBe(5);
   });
+
+  it("dev auth is off by default and only allowed with NODE_ENV=local", () => {
+    expect(loadConfig({ ...baseEnv }).auth.devAuthEnabled).toBe(false);
+    expect(
+      loadConfig({ ...baseEnv, NODE_ENV: "local", DEV_AUTH_ENABLED: "true" }).auth.devAuthEnabled,
+    ).toBe(true);
+    for (const env of ["development", "staging", "production"]) {
+      expect(() => loadConfig({ ...baseEnv, NODE_ENV: env, DEV_AUTH_ENABLED: "true" })).toThrow(
+        /DEV_AUTH_ENABLED/,
+      );
+    }
+  });
 });

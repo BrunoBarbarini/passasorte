@@ -22,7 +22,7 @@ export class ApiError extends Error {
 }
 
 export interface ApiRequestOptions {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   accessToken?: string;
   /** FR-038: caller-supplied dedupe key for a movement/financial command. */

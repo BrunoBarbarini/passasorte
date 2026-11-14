@@ -141,6 +141,12 @@ export const EnvSchema = z.object({
   /// forbids inventing a numeric limit nobody configured.
   PILOT_MAX_ACTIVE_ROOMS: z.coerce.number().int().positive().optional(),
 
+  /// LOCAL-ONLY test sign-in (no Supabase): accepts tokens "dev:<email>@dev.passasorte.test".
+  /// Exists because the login is deferred (see CLAUDE.md, 2026-11-13). loadConfig REFUSES to
+  /// start when this is true and NODE_ENV is anything but "local", so it can never be on in
+  /// development/staging/production.
+  DEV_AUTH_ENABLED: booleanEnvFlag(false),
+
   ...FeatureFlagsSchema.shape,
 });
 export type Env = z.infer<typeof EnvSchema>;

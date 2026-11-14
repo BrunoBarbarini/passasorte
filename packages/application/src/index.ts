@@ -26,6 +26,7 @@ export * from "./ports/analytics.port.js";
 export * from "./ports/round-action-repository.port.js";
 export * from "./ports/engine-v2-room.port.js";
 export * from "./ports/position-selection.port.js";
+export * from "./ports/participant-game-state.port.js";
 
 export * from "./use-cases/identity/authenticate-request.use-case.js";
 
@@ -55,6 +56,7 @@ export * from "./use-cases/participation/submit-round-action.use-case.js";
 export * from "./use-cases/game/start-room-v2.use-case.js";
 export * from "./use-cases/game/start-position-selection.use-case.js";
 export * from "./use-cases/game/pick-positions.use-case.js";
+export * from "./use-cases/game/get-participant-game-state.use-case.js";
 export * from "./use-cases/game/auto-allocate-expired-picks.use-case.js";
 export {
   buildSelectionState,

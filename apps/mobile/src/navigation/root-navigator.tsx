@@ -5,11 +5,8 @@ import type { RootStackParamList } from "./types.js";
 import { HomeScreen } from "../screens/HomeScreen.js";
 import { AuthScreen } from "../screens/AuthScreen.js";
 import { CampaignDetailScreen } from "../screens/CampaignDetailScreen.js";
-import { PositionSelectionScreen } from "../screens/PositionSelectionScreen.js";
-import { ParticipationConfirmationScreen } from "../screens/ParticipationConfirmationScreen.js";
+import { RoomEntryScreen } from "../screens/RoomEntryScreen.js";
 import { LiveGameScreen } from "../screens/LiveGameScreen.js";
-import { FinalLockScreen } from "../screens/FinalLockScreen.js";
-import { ResultScreen } from "../screens/ResultScreen.js";
 import { BenefitsScreen } from "../screens/BenefitsScreen.js";
 import { colors } from "../theme/tokens.js";
 
@@ -49,22 +46,15 @@ export function RootNavigator(): React.JSX.Element {
           options={{ title: "Campanha" }}
         />
         <Stack.Screen
-          name="PositionSelection"
-          component={PositionSelectionScreen}
-          options={{ title: "Escolher posição" }}
+          name="RoomEntry"
+          component={RoomEntryScreen}
+          options={{ title: "Entrar na sala" }}
         />
         <Stack.Screen
-          name="ParticipationConfirmation"
-          component={ParticipationConfirmationScreen}
-          options={{ title: "Confirmar participação" }}
+          name="LiveGame"
+          component={LiveGameScreen}
+          options={{ title: "Minha partida" }}
         />
-        <Stack.Screen name="LiveGame" component={LiveGameScreen} options={{ title: "Jogo" }} />
-        <Stack.Screen
-          name="FinalLock"
-          component={FinalLockScreen}
-          options={{ title: "Travamento final" }}
-        />
-        <Stack.Screen name="Result" component={ResultScreen} options={{ title: "Resultado" }} />
         <Stack.Screen
           name="Benefits"
           component={BenefitsScreen}

@@ -28,6 +28,9 @@ import {
   SubmitMovementCommandUseCase,
   SetAutoActionUseCase,
   PickPositionsUseCase,
+  GetParticipantGameStateUseCase,
+  type ParticipantGameStatePort,
+  type ParticipantGameStateView,
   type PositionSelectionPort,
   SubmitRoundActionUseCase,
   ValidationError,
@@ -53,6 +56,7 @@ import {
   OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
   POSITION_SELECTION_PORT,
+  PARTICIPANT_GAME_STATE_PORT,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
   ROUND_ACTION_REPOSITORY,
@@ -104,6 +108,7 @@ export class ParticipationsController {
     @Inject(ROUND_ACTION_REPOSITORY) private readonly roundActions: RoundActionRepository,
     @Inject(FEATURE_FLAGS) private readonly featureFlags: FeatureFlags,
     @Inject(POSITION_SELECTION_PORT) private readonly selection: PositionSelectionPort,
+    @Inject(PARTICIPANT_GAME_STATE_PORT) private readonly gameState: ParticipantGameStatePort,
   ) {}
 
   @Post("rooms/:roomId/participations")
@@ -165,6 +170,20 @@ export class ParticipationsController {
     @CurrentUser() user: AuthenticatedUser,
   ): Promise<Participation> {
     return this.requireOwnedParticipation(id, user);
+  }
+
+  /** Live state for the participant app: temperature LEVEL only (BR-090), balance, round, result. */
+  @Get("participations/:id/game-state")
+  async gameStateOf(
+    @Param("id") id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<ParticipantGameStateView> {
+    await this.requireOwnedParticipation(id, user);
+    return new GetParticipantGameStateUseCase(
+      this.participationRepository,
+      this.roomRepository,
+      this.gameState,
+    ).execute({ participationId: id });
   }
 
   @Get("rooms/:roomId/participations/me")

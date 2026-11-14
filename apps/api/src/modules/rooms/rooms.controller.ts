@@ -51,8 +51,11 @@ import { parseWithSchema } from "../../common/validation/parse-with-schema.js";
 import { resolveEligibilityRules } from "../../infrastructure/eligibility/eligibility-rule-registry.js";
 
 export interface PositionSelectionView {
+  readonly serverTime: string;
   readonly status: string;
   readonly boardSize: number | null;
+  /** Positions already owned: needed to choose among the free ones (DECISION-07). */
+  readonly takenPositions: readonly number[];
   readonly pickWindowMs: number | null;
   readonly currentTurn: {
     readonly participationId: string;
@@ -155,14 +158,23 @@ export class RoomsController {
     const room = await this.roomRepository.findById(roomId);
     if (!room) throw new NotFoundError("GameRoom", roomId);
     if (!room.positionSelection) {
-      return { status: room.status, boardSize: null, pickWindowMs: null, currentTurn: null };
+      return {
+        serverTime: new Date().toISOString(),
+        status: room.status,
+        boardSize: null,
+        takenPositions: [],
+        pickWindowMs: null,
+        currentTurn: null,
+      };
     }
     const snapshot = await this.selection.loadSnapshot(roomId);
     const state = buildSelectionState(room, snapshot);
     const picker = room.status === "POSITION_SELECTION" ? gameV2.currentPicker(state) : null;
     return {
+      serverTime: new Date().toISOString(),
       status: room.status,
       boardSize: room.positionSelection.boardSize,
+      takenPositions: snapshot.assignments.flatMap((a) => a.positions).sort((x, y) => x - y),
       pickWindowMs: room.positionSelection.pickWindowMs,
       currentTurn: picker
         ? {

@@ -56,6 +56,10 @@ export interface AppConfig {
     allowedMerchantIds: string[];
     maxActiveRooms: number | null;
   };
+  /** Local-only test sign-in; guaranteed false outside NODE_ENV=local (loadConfig refuses otherwise). */
+  auth: {
+    devAuthEnabled: boolean;
+  };
   featureFlags: FeatureFlags;
 }
 
@@ -76,6 +80,11 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
   }
 
   const env = result.data;
+  if (env.DEV_AUTH_ENABLED && env.NODE_ENV !== "local") {
+    throw new ConfigValidationError([
+      `DEV_AUTH_ENABLED: o login de teste só pode ser ligado com NODE_ENV=local (atual: ${env.NODE_ENV}).`,
+    ]);
+  }
 
   return {
     env: env.NODE_ENV,
@@ -131,6 +140,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
         .map((id) => id.trim())
         .filter((id) => id.length > 0),
       maxActiveRooms: env.PILOT_MAX_ACTIVE_ROOMS ?? null,
+    },
+    auth: {
+      devAuthEnabled: env.DEV_AUTH_ENABLED,
     },
     featureFlags: {
       ENABLE_NEW_PARTICIPATIONS: env.ENABLE_NEW_PARTICIPATIONS,

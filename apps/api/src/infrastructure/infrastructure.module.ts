@@ -8,6 +8,8 @@ import { PrismaExperienceRepository } from "./prisma/repositories/experience.rep
 import { PrismaCampaignRepository } from "./prisma/repositories/campaign.repository.js";
 import { PrismaAuditLogRepository } from "./prisma/repositories/audit-log.repository.js";
 import { PrismaOutboxRepository } from "./prisma/repositories/outbox.repository.js";
+import { DevAuthAdapter } from "./auth/dev-auth.adapter.js";
+import { PrismaParticipantGameStateRepository } from "./prisma/repositories/participant-game-state.repository.js";
 import { PrismaPositionSelectionRepository } from "./prisma/repositories/position-selection.repository.js";
 import { PrismaEngineV2StartRepository } from "./prisma/repositories/engine-v2-start.repository.js";
 import { PrismaRoomRepository } from "./prisma/repositories/room.repository.js";
@@ -41,6 +43,7 @@ import {
   ROUND_ACTION_REPOSITORY,
   ENGINE_V2_START_PORT,
   POSITION_SELECTION_PORT,
+  PARTICIPANT_GAME_STATE_PORT,
   IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
   NOTIFICATION_PROVIDERS,
@@ -57,7 +60,12 @@ import {
 
 const authPortProvider: Provider = {
   provide: AUTH_PORT,
-  useFactory: (): AuthPort => new SupabaseAuthAdapter(loadConfig().supabase.url),
+  useFactory: (): AuthPort => {
+    const config = loadConfig();
+    // Local-only test sign-in; loadConfig already refuses the flag outside NODE_ENV=local.
+    if (config.auth.devAuthEnabled) return new DevAuthAdapter();
+    return new SupabaseAuthAdapter(config.supabase.url);
+  },
 };
 
 const notificationProvidersProvider: Provider = {
@@ -122,6 +130,7 @@ const analyticsPortProvider: Provider = {
     { provide: ROUND_ACTION_REPOSITORY, useClass: PrismaRoundActionRepository },
     { provide: ENGINE_V2_START_PORT, useClass: PrismaEngineV2StartRepository },
     { provide: POSITION_SELECTION_PORT, useClass: PrismaPositionSelectionRepository },
+    { provide: PARTICIPANT_GAME_STATE_PORT, useClass: PrismaParticipantGameStateRepository },
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     notificationProvidersProvider,
     { provide: BENEFIT_ACCOUNT_REPOSITORY, useClass: PrismaBenefitAccountRepository },
@@ -150,6 +159,7 @@ const analyticsPortProvider: Provider = {
     ROUND_ACTION_REPOSITORY,
     ENGINE_V2_START_PORT,
     POSITION_SELECTION_PORT,
+    PARTICIPANT_GAME_STATE_PORT,
     NOTIFICATION_REPOSITORY,
     NOTIFICATION_PROVIDERS,
     BENEFIT_ACCOUNT_REPOSITORY,

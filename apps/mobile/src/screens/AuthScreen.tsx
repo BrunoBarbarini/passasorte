@@ -14,7 +14,8 @@ type Props = NativeStackScreenProps<RootStackParamList, "Auth">;
  * auth-context.tsx for why that specific method was picked).
  */
 export function AuthScreen({ navigation }: Props): React.JSX.Element {
-  const { signInWithPassword, signUpWithPassword } = useAuth();
+  const { signInWithPassword, signUpWithPassword, signInDev, devAuth } = useAuth();
+  const [name, setName] = useState("");
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,7 +26,9 @@ export function AuthScreen({ navigation }: Props): React.JSX.Element {
     setError(undefined);
     setSubmitting(true);
     try {
-      if (mode === "signIn") {
+      if (devAuth) {
+        await signInDev(name);
+      } else if (mode === "signIn") {
         await signInWithPassword(email, password);
       } else {
         await signUpWithPassword(email, password);
@@ -37,6 +40,33 @@ export function AuthScreen({ navigation }: Props): React.JSX.Element {
       setSubmitting(false);
     }
   };
+
+  if (devAuth) {
+    return (
+      <ScreenContainer style={styles.container}>
+        <Text style={styles.title}>Entrar (teste local)</Text>
+        <Text style={styles.hint}>
+          Login de teste, só para desenvolvimento. Escolha um nome de usuário; cada nome é um
+          participante diferente.
+        </Text>
+        <TextInput
+          style={styles.input}
+          placeholder="nome (ex.: ana)"
+          placeholderTextColor={colors.textMuted}
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={name}
+          onChangeText={setName}
+        />
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+        <Button
+          label={submitting ? "Entrando..." : "Entrar"}
+          loading={submitting}
+          onPress={() => void submit()}
+        />
+      </ScreenContainer>
+    );
+  }
 
   return (
     <ScreenContainer style={styles.container}>
@@ -86,6 +116,7 @@ const styles = StyleSheet.create({
     color: colors.navy,
     fontSize: typography.body.fontSize,
   },
+  hint: { ...typography.small, color: colors.textMuted, marginBottom: spacing.lg },
   error: { color: colors.danger, marginBottom: spacing.md },
   switchLink: {
     ...typography.body,
