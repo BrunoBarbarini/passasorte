@@ -1,9 +1,4 @@
-import {
-  assertRoomTransition,
-  gameV2,
-  generateRandomSeed,
-  commitRandomSeed,
-} from "@passasorte/domain";
+import { assertRoomTransition, gameV2 } from "@passasorte/domain";
 import type { GameRoom } from "@passasorte/domain";
 import type { RoomRepository } from "../../ports/room-repository.port.js";
 import type { EngineV2StartPort } from "../../ports/engine-v2-room.port.js";
@@ -17,26 +12,28 @@ export interface StartRoomV2Input {
 }
 
 /**
- * ENTRY_LOCKED -> RUNNING for an Engine V2 room (TASK-106). Freezes the engine config
- * with the mandatory per-round cap (BR-024/BR-089), commits the seed, derives the
+ * READY -> RUNNING for an Engine V2 room (TASK-106). Freezes the engine config
+ * with the mandatory per-round cap (BR-024/BR-089), takes the seed sealed at the start of the
+ * selection phase (TASK-075), derives the
  * initial Sorte and creates every round window. The board size N is the total number
  * of positions chosen by the confirmed participations, which must tile 1..N exactly
- * (the engine rejects anything else). Known gap (ADR-025): the commitment is created
- * here, not before N was known.
+ * (the engine rejects anything else). Known gap (ADR-025): the seed is sealed when the
+ * selection starts, after N is known.
  */
 export class StartRoomV2UseCase {
   constructor(
     private readonly rooms: RoomRepository,
     private readonly start: EngineV2StartPort,
     private readonly clock: () => Date = () => new Date(),
-    private readonly newSeed: () => string = generateRandomSeed,
   ) {}
 
   async execute(input: StartRoomV2Input): Promise<GameRoom> {
     const room = await this.rooms.findById(input.roomId);
     if (!room) throw new NotFoundError("GameRoom", input.roomId);
-    if (room.status !== "ENTRY_LOCKED") {
-      throw new DomainError("A sala precisa estar com as entradas travadas para ser iniciada.");
+    if (room.status !== "READY") {
+      throw new DomainError(
+        "A sala só pode ser iniciada depois que todas as posições da barra tiverem dono (fase de seleção concluída).",
+      );
     }
     assertRoomTransition(room.status, "RUNNING");
 
@@ -60,8 +57,14 @@ export class StartRoomV2UseCase {
     });
 
     const now = this.clock();
-    const seedHex = this.newSeed();
-    const commitmentHash = commitRandomSeed(seedHex).commitmentHash;
+    const sealed = await this.start.loadSealedSeed(room.id);
+    if (!sealed) {
+      throw new DomainError(
+        "A semente da sala não foi selada; a fase de seleção não foi executada.",
+      );
+    }
+    const seedHex = sealed.seedHex;
+    const commitmentHash = sealed.commitmentHash;
     const boardSize = seats.reduce((total, seat) => total + seat.positions.length, 0);
 
     try {
@@ -89,7 +92,6 @@ export class StartRoomV2UseCase {
           winningZoneSize: input.config.winningZoneSize,
           maxMovementsPerRound: input.config.maxMovementsPerRound,
         },
-        seedHex,
         initialSorte,
         schedule: input.schedule,
         participationIds: seats.map((seat) => seat.participationId),

@@ -29,12 +29,17 @@ export class PrismaEngineV2StartRepository implements EngineV2StartPort {
     }));
   }
 
+  async loadSealedSeed(roomId: string) {
+    const run = await this.prisma.gameRun.findUnique({ where: { roomId } });
+    return run ? { seedHex: run.seed, commitmentHash: run.commitmentHash } : null;
+  }
+
   async commitStart(input: CommitRoomStartInput): Promise<GameRoom> {
     return this.prisma.$transaction(async (tx) => {
       const locked = await tx.$queryRaw<{ status: string }[]>`
         select status::text as status from game_rooms where id = ${input.roomId}::uuid for update`;
-      if (locked[0]?.status !== "ENTRY_LOCKED") {
-        throw new ConflictError("A sala não está mais com as entradas travadas.");
+      if (locked[0]?.status !== "READY") {
+        throw new ConflictError("A sala não está mais pronta para iniciar.");
       }
 
       const activated = await tx.participation.updateMany({
@@ -52,14 +57,6 @@ export class PrismaEngineV2StartRepository implements EngineV2StartPort {
         throw new ConflictError("As participações confirmadas mudaram durante o início da sala.");
       }
 
-      await tx.gameRun.create({
-        data: {
-          roomId: input.roomId,
-          engineVersion: gameV2.ENGINE_V2_VERSION,
-          commitmentHash: input.initialSorte.randomnessCommitmentHash,
-          seed: input.seedHex,
-        },
-      });
       await tx.initialSorteRecord.create({
         data: {
           roomId: input.roomId,

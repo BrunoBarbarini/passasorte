@@ -8,6 +8,8 @@ export type RoomStatus =
   | "DRAFT"
   | "OPEN"
   | "ENTRY_LOCKED"
+  | "POSITION_SELECTION"
+  | "READY"
   | "RUNNING"
   | "FINAL_LOCK"
   | "RESOLVING"

@@ -1,11 +1,21 @@
-import { Body, Controller, Inject, Param, Post, UseGuards } from "@nestjs/common";
-import { CreateRoomSchema, HoldPositionsSchema, StartRoomV2Schema } from "@passasorte/api-contract";
+import { Body, Controller, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import {
+  CreateRoomSchema,
+  HoldPositionsSchema,
+  StartPositionSelectionSchema,
+  StartRoomV2Schema,
+} from "@passasorte/api-contract";
 import {
   CreateRoomUseCase,
   OpenRoomUseCase,
   LockRoomEntriesUseCase,
   StartRoomUseCase,
   StartRoomV2UseCase,
+  StartPositionSelectionUseCase,
+  buildSelectionState,
+  currentPickDeadline,
+  NotFoundError,
+  type PositionSelectionPort,
   type EngineV2StartPort,
   HoldPositionsUseCase,
   type CampaignRepository,
@@ -15,7 +25,13 @@ import {
   type PositionHoldRepository,
   type RoomRepository,
 } from "@passasorte/application";
-import type { AuthenticatedUser, GameRoom, PilotPolicy, PositionHold } from "@passasorte/domain";
+import {
+  gameV2,
+  type AuthenticatedUser,
+  type GameRoom,
+  type PilotPolicy,
+  type PositionHold,
+} from "@passasorte/domain";
 import { AuthGuard } from "../../common/auth/auth.guard.js";
 import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
@@ -23,6 +39,7 @@ import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
   CAMPAIGN_REPOSITORY,
   ENGINE_V2_START_PORT,
+  POSITION_SELECTION_PORT,
   GAME_RUN_REPOSITORY,
   OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
@@ -32,6 +49,19 @@ import {
 } from "../../common/tokens.js";
 import { parseWithSchema } from "../../common/validation/parse-with-schema.js";
 import { resolveEligibilityRules } from "../../infrastructure/eligibility/eligibility-rule-registry.js";
+
+export interface PositionSelectionView {
+  readonly status: string;
+  readonly boardSize: number | null;
+  readonly pickWindowMs: number | null;
+  readonly currentTurn: {
+    readonly participationId: string;
+    readonly positionCount: number;
+    readonly deadline: string;
+  } | null;
+  readonly picked?: number;
+  readonly total?: number;
+}
 
 /**
  * TASK-024 Room Domain (operational side) + FR-022..FR-024 Position Hold
@@ -54,6 +84,7 @@ export class RoomsController {
     @Inject(CAMPAIGN_REPOSITORY) private readonly campaignRepository: CampaignRepository,
     @Inject(PILOT_POLICY) private readonly pilotPolicy: PilotPolicy,
     @Inject(ENGINE_V2_START_PORT) private readonly engineV2Start: EngineV2StartPort,
+    @Inject(POSITION_SELECTION_PORT) private readonly selection: PositionSelectionPort,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -104,6 +135,45 @@ export class RoomsController {
       this.participationRepository,
       this.gameRunRepository,
     ).execute({ roomId });
+  }
+
+  /** TASK-075: ENTRY_LOCKED -> POSITION_SELECTION. The operator sets the pick window. */
+  @Post("rooms/:roomId/start-selection")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  startSelection(@Param("roomId") roomId: string, @Body() body: unknown): Promise<GameRoom> {
+    const input = parseWithSchema(StartPositionSelectionSchema, body);
+    return new StartPositionSelectionUseCase(this.roomRepository, this.selection).execute({
+      roomId,
+      pickWindowMs: input.pickWindowMs,
+    });
+  }
+
+  /** TASK-075: public-to-participants view of the selection: whose turn, until when, who picked. */
+  @Get("rooms/:roomId/position-selection")
+  async positionSelection(@Param("roomId") roomId: string): Promise<PositionSelectionView> {
+    const room = await this.roomRepository.findById(roomId);
+    if (!room) throw new NotFoundError("GameRoom", roomId);
+    if (!room.positionSelection) {
+      return { status: room.status, boardSize: null, pickWindowMs: null, currentTurn: null };
+    }
+    const snapshot = await this.selection.loadSnapshot(roomId);
+    const state = buildSelectionState(room, snapshot);
+    const picker = room.status === "POSITION_SELECTION" ? gameV2.currentPicker(state) : null;
+    return {
+      status: room.status,
+      boardSize: room.positionSelection.boardSize,
+      pickWindowMs: room.positionSelection.pickWindowMs,
+      currentTurn: picker
+        ? {
+            participationId: picker.participantId,
+            positionCount: picker.positionCredits,
+            deadline: currentPickDeadline(room, snapshot).toISOString(),
+          }
+        : null,
+      picked: snapshot.assignments.length,
+      total: snapshot.entries.length,
+    };
   }
 
   /** TASK-106: Engine V2 start. Freezes the config (cap required) and creates the round windows. */

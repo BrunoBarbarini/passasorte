@@ -271,6 +271,8 @@ enum GameRoomStatus {
   DRAFT
   OPEN
   ENTRY_LOCKED
+  POSITION_SELECTION
+  READY
   RUNNING
   FINAL_LOCK
   RESOLVING
@@ -328,13 +330,16 @@ model GameRoom {
   /// BR-024/BR-089: GameConfigV2 frozen when the room starts ({winningZoneSize, maxMovementsPerRound}).
   /// Null for rooms created before Engine V2; round submissions are rejected for them.
   engineV2Config        Json?          @map("engine_v2_config")
+  /// TASK-075: {pickWindowMs, startedAt, boardSize}; set when the position selection starts.
+  positionSelection     Json?          @map("position_selection")
 
-  campaign       Campaign            @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  positionHolds  PositionHold[]
-  participations Participation[]
-  gameRun        GameRun?
-  gameRounds     GameRound[]
-  initialSorte   InitialSorteRecord?
+  campaign            Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  positionHolds       PositionHold[]
+  participations      Participation[]
+  gameRun             GameRun?
+  positionAssignments RoomPositionAssignment[]
+  gameRounds          GameRound[]
+  initialSorte        InitialSorteRecord?
 
   @@map("game_rooms")
 }
@@ -384,11 +389,12 @@ model Participation {
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  room             GameRoom                @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  user             User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
-  movementCommands MovementCommandLog[]
-  roundActions     RoundAction[]
-  roundSubmissions RoundActionSubmission[]
+  room                GameRoom                 @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user                User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  movementCommands    MovementCommandLog[]
+  roundActions        RoundAction[]
+  roundSubmissions    RoundActionSubmission[]
+  positionAssignments RoomPositionAssignment[]
 
   @@unique([roomId, entrySequence])
   @@index([userId, roomId])
@@ -676,4 +682,23 @@ model InitialSorteRecord {
   room GameRoom @relation(fields: [roomId], references: [id], onDelete: Restrict)
 
   @@map("initial_sorte_records")
+}
+
+/// TASK-075 / BR-010: one row per owned position of a room. UNIQUE(room, position) is the
+/// final guard against two owners. Append-only (trigger in SQL).
+model RoomPositionAssignment {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId          String   @map("room_id") @db.Uuid
+  participationId String   @map("participation_id") @db.Uuid
+  position        Int
+  pickKind        String   @map("pick_kind")
+  pickedAt        DateTime @map("picked_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  room          GameRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+
+  @@unique([roomId, position])
+  @@index([participationId])
+  @@map("room_position_assignments")
 }

@@ -22,6 +22,14 @@ import type { RoomOperationsConfig } from "../game/room-operations-config.js";
 
 export type { RoomStatus } from "./room-state-machine.js";
 
+export interface PositionSelectionConfig {
+  /** Time each participant has to choose; chosen by the operator per room, no default (T-14). */
+  readonly pickWindowMs: number;
+  /** UTC ISO-8601, server clock. The first turn starts here. */
+  readonly startedAt: string;
+  readonly boardSize: number;
+}
+
 export interface GameRoom {
   readonly id: string;
   readonly campaignId: string;
@@ -35,6 +43,8 @@ export interface GameRoom {
   readonly operationsConfig: RoomOperationsConfig;
   /** Engine V2 configuration frozen when the room starts (BR-024); null for legacy rooms or before start. */
   readonly engineV2Config?: GameConfigV2 | null;
+  /** TASK-075: position-selection settings, set when the selection phase starts (null before). */
+  readonly positionSelection?: PositionSelectionConfig | null;
   readonly status: RoomStatus;
   readonly createdAt: Date;
   /** TASK-034 Scheduler: when this room entered FINAL_LOCK — used only to pace the grace-period timeout (operationsConfig.finalLockGracePeriodMs), never a business rule about outcomes. */

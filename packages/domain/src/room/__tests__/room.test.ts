@@ -17,6 +17,13 @@ describe("room state machine (CLAUDE.md #7)", () => {
     expect(canTransitionRoomStatus("RESOLVING", "COMPLETED")).toBe(true);
   });
 
+  it("allows the V2 selection path ENTRY_LOCKED -> POSITION_SELECTION -> READY -> RUNNING (TASK-075)", () => {
+    expect(canTransitionRoomStatus("ENTRY_LOCKED", "POSITION_SELECTION")).toBe(true);
+    expect(canTransitionRoomStatus("POSITION_SELECTION", "READY")).toBe(true);
+    expect(canTransitionRoomStatus("READY", "RUNNING")).toBe(true);
+    expect(canTransitionRoomStatus("POSITION_SELECTION", "RUNNING")).toBe(false);
+  });
+
   it("allows RUNNING -> RESOLVING for Engine V2 rooms (no final lock, BR-067)", () => {
     expect(canTransitionRoomStatus("RUNNING", "RESOLVING")).toBe(true);
   });
@@ -26,6 +33,8 @@ describe("room state machine (CLAUDE.md #7)", () => {
       "DRAFT",
       "OPEN",
       "ENTRY_LOCKED",
+      "POSITION_SELECTION",
+      "READY",
       "RUNNING",
       "FINAL_LOCK",
       "RESOLVING",

@@ -34,6 +34,8 @@ const ROOM_STATUSES = new Set<RoomStatus>([
   "DRAFT",
   "OPEN",
   "ENTRY_LOCKED",
+  "POSITION_SELECTION",
+  "READY",
   "RUNNING",
   "FINAL_LOCK",
   "RESOLVING",

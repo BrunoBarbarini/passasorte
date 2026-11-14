@@ -14,6 +14,7 @@ import {
   SubmitFinalMovementSchema,
   SubmitMovementSchema,
   SetAutoActionSchema,
+  PickPositionsSchema,
   SubmitRoundActionSchema,
 } from "@passasorte/api-contract";
 import {
@@ -26,6 +27,8 @@ import {
   SubmitFinalMovementCommandUseCase,
   SubmitMovementCommandUseCase,
   SetAutoActionUseCase,
+  PickPositionsUseCase,
+  type PositionSelectionPort,
   SubmitRoundActionUseCase,
   ValidationError,
   type RoundActionRepository,
@@ -49,6 +52,7 @@ import {
   IDEMPOTENCY_PORT,
   OUTBOX_PORT,
   PARTICIPATION_REPOSITORY,
+  POSITION_SELECTION_PORT,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
   ROUND_ACTION_REPOSITORY,
@@ -99,6 +103,7 @@ export class ParticipationsController {
     @Inject(OUTBOX_PORT) private readonly outbox: OutboxPort,
     @Inject(ROUND_ACTION_REPOSITORY) private readonly roundActions: RoundActionRepository,
     @Inject(FEATURE_FLAGS) private readonly featureFlags: FeatureFlags,
+    @Inject(POSITION_SELECTION_PORT) private readonly selection: PositionSelectionPort,
   ) {}
 
   @Post("rooms/:roomId/participations")
@@ -118,13 +123,11 @@ export class ParticipationsController {
       throw new NotFoundError("ParticipationPackage", input.packageId);
     }
 
-    // FR-023/024/026: a participant must already hold every requested
-    // position (via POST /rooms/:roomId/holds) before a participation can
-    // be created for it — this is wiring, not an invented business rule:
-    // it keeps "select -> hold -> participate -> confirm" as the only
-    // path into a room.
+    // Legacy entry-time flow (FR-023/024/026): when positions are sent, the participant must
+    // hold each one first. With the selection phase (TASK-075) none is sent: positions are
+    // chosen after the entries close.
     const now = new Date();
-    for (const position of input.positions) {
+    for (const position of input.positions ?? []) {
       const hold = await this.holdRepository.findActiveHold(roomId, position, now);
       if (!hold || hold.holderRef !== user.user.id) {
         throw new ConflictError(
@@ -137,7 +140,7 @@ export class ParticipationsController {
       roomId,
       userId: user.user.id,
       package: selectedPackage,
-      positions: input.positions,
+      positions: input.positions ?? [],
     });
   }
 
@@ -236,6 +239,22 @@ export class ParticipationsController {
       idempotencyKey,
     });
     return toSubmitRoundActionResponse(result);
+  }
+
+  /** TASK-075: the participant whose turn it is chooses exactly the positions they bought. */
+  @Post("participations/:id/position-picks")
+  async pickPositions(
+    @Param("id") id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    await this.requireOwnedParticipation(id, user);
+    const input = parseWithSchema(PickPositionsSchema, body);
+    return new PickPositionsUseCase(
+      this.participationRepository,
+      this.roomRepository,
+      this.selection,
+    ).execute({ participationId: id, positions: input.positions });
   }
 
   /** DECISION-03/04: choose the automatic action; editable until the room starts (ASSUMPTION). */

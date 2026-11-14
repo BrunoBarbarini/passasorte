@@ -12,7 +12,8 @@ export interface CreateParticipationCommand {
   roomId: string;
   userId: string;
   package: ParticipationPackage;
-  positions: readonly Position[];
+  /** Empty/omitted = choose later, in the selection phase (DECISION-10). */
+  positions?: readonly Position[];
 }
 
 /**
@@ -38,7 +39,12 @@ export class CreateParticipationUseCase {
   ) {}
 
   async execute(command: CreateParticipationCommand): Promise<Participation> {
-    if (command.positions.length !== command.package.positionCount) {
+    // TASK-075 (DECISION-10): positions are chosen AFTER the entries close, so an entry declares
+    // only the package (count). An explicit list is still accepted for the legacy entry-time flow.
+    if (
+      (command.positions ?? []).length > 0 &&
+      (command.positions ?? []).length !== command.package.positionCount
+    ) {
       throw new ValidationError(
         `Este pacote exige exatamente ${command.package.positionCount} posição(ões).`,
         { field: "positions" },
@@ -51,7 +57,7 @@ export class CreateParticipationUseCase {
     const violations = evaluateEligibility(command.package.eligibilityRules, {
       userId: command.userId,
       roomId: command.roomId,
-      requestedPositionCount: command.positions.length,
+      requestedPositionCount: command.package.positionCount,
       existingActiveParticipationCount,
     });
     if (violations.length > 0) {
@@ -64,7 +70,7 @@ export class CreateParticipationUseCase {
       roomId: command.roomId,
       userId: command.userId,
       packageId: command.package.id,
-      positions: command.positions,
+      positions: command.positions ?? [],
       movementAllowance: command.package.movementAllowance,
     });
     await this.participationRepository.transition(created.id, "RESERVED");

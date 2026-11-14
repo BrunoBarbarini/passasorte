@@ -8,6 +8,7 @@ import { PrismaExperienceRepository } from "./prisma/repositories/experience.rep
 import { PrismaCampaignRepository } from "./prisma/repositories/campaign.repository.js";
 import { PrismaAuditLogRepository } from "./prisma/repositories/audit-log.repository.js";
 import { PrismaOutboxRepository } from "./prisma/repositories/outbox.repository.js";
+import { PrismaPositionSelectionRepository } from "./prisma/repositories/position-selection.repository.js";
 import { PrismaEngineV2StartRepository } from "./prisma/repositories/engine-v2-start.repository.js";
 import { PrismaRoomRepository } from "./prisma/repositories/room.repository.js";
 import { PrismaPositionHoldRepository } from "./prisma/repositories/position-hold.repository.js";
@@ -39,6 +40,7 @@ import {
   GAME_RUN_REPOSITORY,
   ROUND_ACTION_REPOSITORY,
   ENGINE_V2_START_PORT,
+  POSITION_SELECTION_PORT,
   IDEMPOTENCY_PORT,
   MERCHANT_REPOSITORY,
   NOTIFICATION_PROVIDERS,
@@ -119,6 +121,7 @@ const analyticsPortProvider: Provider = {
     { provide: GAME_RUN_REPOSITORY, useClass: PrismaGameRunRepository },
     { provide: ROUND_ACTION_REPOSITORY, useClass: PrismaRoundActionRepository },
     { provide: ENGINE_V2_START_PORT, useClass: PrismaEngineV2StartRepository },
+    { provide: POSITION_SELECTION_PORT, useClass: PrismaPositionSelectionRepository },
     { provide: NOTIFICATION_REPOSITORY, useClass: PrismaNotificationRepository },
     notificationProvidersProvider,
     { provide: BENEFIT_ACCOUNT_REPOSITORY, useClass: PrismaBenefitAccountRepository },
@@ -146,6 +149,7 @@ const analyticsPortProvider: Provider = {
     GAME_RUN_REPOSITORY,
     ROUND_ACTION_REPOSITORY,
     ENGINE_V2_START_PORT,
+    POSITION_SELECTION_PORT,
     NOTIFICATION_REPOSITORY,
     NOTIFICATION_PROVIDERS,
     BENEFIT_ACCOUNT_REPOSITORY,

@@ -39,7 +39,7 @@ const seats: RoomStartSeat[] = [
   },
 ];
 
-function rooms(status = "ENTRY_LOCKED"): RoomRepository {
+function rooms(status = "READY"): RoomRepository {
   return {
     findById: async (id: string) => ({ id, status }) as unknown as GameRoom,
   } as unknown as RoomRepository;
@@ -49,6 +49,7 @@ function startPort(list: RoomStartSeat[] = seats) {
   const committed: CommitRoomStartInput[] = [];
   const port: EngineV2StartPort = {
     listConfirmedSeats: async () => list,
+    loadSealedSeed: async () => ({ seedHex: SEED, commitmentHash: commitmentOf(SEED) }),
     commitStart: async (input) => {
       committed.push(input);
       return { id: input.roomId, status: "RUNNING" } as unknown as GameRoom;
@@ -60,12 +61,7 @@ function startPort(list: RoomStartSeat[] = seats) {
 describe("StartRoomV2UseCase", () => {
   const start = (list?: RoomStartSeat[], status?: string) => {
     const fake = startPort(list);
-    const useCase = new StartRoomV2UseCase(
-      rooms(status),
-      fake.port,
-      () => T(0),
-      () => SEED,
-    );
+    const useCase = new StartRoomV2UseCase(rooms(status), fake.port, () => T(0));
     return { ...fake, useCase };
   };
 
@@ -83,8 +79,8 @@ describe("StartRoomV2UseCase", () => {
     expect(c.events[0]?.eventType).toBe("room.started");
   });
 
-  it("requires the room to be ENTRY_LOCKED", async () => {
-    const { useCase } = start(undefined, "OPEN");
+  it("requires the room to be READY (selection phase finished)", async () => {
+    const { useCase } = start(undefined, "ENTRY_LOCKED");
     await expect(useCase.execute({ roomId: "r", config, schedule })).rejects.toBeInstanceOf(
       DomainError,
     );

@@ -1,10 +1,13 @@
 import {
   AdvanceRoomOperationsUseCase,
+  AutoAllocateExpiredPicksUseCase,
+  ConflictError,
   DispatchOutboxEventsUseCase,
   ExpireBenefitsUseCase,
   ExpirePositionHoldsUseCase,
   ResolveRoundV2UseCase,
   type EngineV2ResolutionPort,
+  type PositionSelectionPort,
   type AnalyticsPort,
   type BenefitLedgerRepository,
   type GameRunRepository,
@@ -24,6 +27,7 @@ export interface SchedulerDeps {
   positionHoldRepository: PositionHoldRepository;
   gameRunRepository: GameRunRepository;
   engineV2Resolution: EngineV2ResolutionPort;
+  positionSelection: PositionSelectionPort;
   outbox: OutboxPort;
   outboxReader: OutboxReaderPort;
   notificationRepository: NotificationRepository;
@@ -85,6 +89,30 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
 
   if (!deps.gameAutoAdvanceEnabled) {
     return;
+  }
+
+  // TASK-075: absent pickers get a server-side random allocation once their turn expires.
+  // A ConflictError means another worker/participant won the race: harmless, retried next tick.
+  const autoAllocate = new AutoAllocateExpiredPicksUseCase(
+    deps.roomRepository,
+    deps.positionSelection,
+  );
+  for (const roomId of await deps.positionSelection.listRoomIdsInSelection()) {
+    try {
+      const allocated = await autoAllocate.execute({ roomId });
+      if (allocated > 0) {
+        deps.logger.info(
+          { operation: "auto_allocate_positions", roomId, allocated },
+          "Allocated positions for absent participants",
+        );
+      }
+    } catch (error) {
+      if (error instanceof ConflictError) continue;
+      deps.logger.error(
+        { operation: "auto_allocate_positions", roomId, err: error },
+        "Failed to allocate positions",
+      );
+    }
   }
 
   // TASK-106: Engine V2 rooms advance by round windows. Rounds of a room are resolved

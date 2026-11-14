@@ -75,3 +75,9 @@ export const StartRoomV2Schema = z.object({
     .min(1),
 });
 export type StartRoomV2Body = z.infer<typeof StartRoomV2Schema>;
+
+/** TASK-075: the operator chooses the pick window per room; there is no default (T-14, BR-068). */
+export const StartPositionSelectionSchema = z.object({
+  pickWindowMs: z.number().int().min(1),
+});
+export type StartPositionSelectionBody = z.infer<typeof StartPositionSelectionSchema>;

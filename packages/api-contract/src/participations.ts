@@ -2,7 +2,8 @@ import { z } from "zod";
 
 export const CreateParticipationSchema = z.object({
   packageId: z.string().min(1),
-  positions: z.array(z.number().int().nonnegative()).min(1),
+  /** Omitted/empty: positions are chosen after the entries close (TASK-075, DECISION-10). */
+  positions: z.array(z.number().int().nonnegative()).default([]),
 });
 export type CreateParticipationBody = z.infer<typeof CreateParticipationSchema>;
 
@@ -41,3 +42,9 @@ export type SubmitRoundActionBody = z.infer<typeof SubmitRoundActionSchema>;
 export const AUTO_ACTIONS = ["NONE", "LEFT", "RIGHT", "STAY"] as const;
 export const SetAutoActionSchema = z.object({ autoAction: z.enum(AUTO_ACTIONS) });
 export type SetAutoActionBody = z.infer<typeof SetAutoActionSchema>;
+
+/** TASK-075: the participant whose turn it is chooses exactly the positions they bought. */
+export const PickPositionsSchema = z.object({
+  positions: z.array(z.number().int().min(1)).min(1),
+});
+export type PickPositionsBody = z.infer<typeof PickPositionsSchema>;

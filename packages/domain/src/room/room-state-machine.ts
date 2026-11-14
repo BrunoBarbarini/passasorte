@@ -4,7 +4,8 @@
  *   DRAFT -> OPEN -> ENTRY_LOCKED -> RUNNING -> FINAL_LOCK -> RESOLVING -> COMPLETED
  *     \_________________________________________________________________> CANCELLED
  *
- * Engine V2 has no final lock (BR-067): a V2 room goes RUNNING -> RESOLVING directly
+ * Engine V2 rooms go ENTRY_LOCKED -> POSITION_SELECTION -> READY -> RUNNING (TASK-075,
+ * DECISION-07..11). Engine V2 has no final lock (BR-067): a V2 room goes RUNNING -> RESOLVING directly
  * once the last round window closes.
  *
  * BR-045: cancellation is terminal. This module only knows *legality* of
@@ -17,6 +18,8 @@ export type RoomStatus =
   | "DRAFT"
   | "OPEN"
   | "ENTRY_LOCKED"
+  | "POSITION_SELECTION"
+  | "READY"
   | "RUNNING"
   | "FINAL_LOCK"
   | "RESOLVING"
@@ -26,7 +29,10 @@ export type RoomStatus =
 const FORWARD_TRANSITIONS: Record<RoomStatus, readonly RoomStatus[]> = {
   DRAFT: ["OPEN", "CANCELLED"],
   OPEN: ["ENTRY_LOCKED", "CANCELLED"],
-  ENTRY_LOCKED: ["RUNNING", "CANCELLED"],
+  // ENTRY_LOCKED -> RUNNING stays for the legacy (entry-time positions) path.
+  ENTRY_LOCKED: ["POSITION_SELECTION", "RUNNING", "CANCELLED"],
+  POSITION_SELECTION: ["READY", "CANCELLED"],
+  READY: ["RUNNING", "CANCELLED"],
   RUNNING: ["FINAL_LOCK", "RESOLVING", "CANCELLED"],
   FINAL_LOCK: ["RESOLVING", "CANCELLED"],
   RESOLVING: ["COMPLETED", "CANCELLED"],

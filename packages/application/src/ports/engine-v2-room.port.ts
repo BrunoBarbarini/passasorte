@@ -15,7 +15,6 @@ export interface CommitRoomStartInput {
   readonly roomId: string;
   readonly startedAt: Date;
   readonly config: gameV2.GameConfigV2;
-  readonly seedHex: string;
   readonly initialSorte: gameV2.InitialSorteRecord;
   readonly schedule: readonly gameV2.RoundScheduleEntry[];
   readonly participationIds: readonly string[];
@@ -24,11 +23,13 @@ export interface CommitRoomStartInput {
 
 /**
  * Atomic start of an Engine V2 room (TASK-106). `commitStart` runs in ONE transaction:
- * re-checks the room is ENTRY_LOCKED (ConflictError otherwise), freezes the config
- * (BR-024), creates the commitment/seed record, the initial Sorte and every
+ * re-checks the room is READY (ConflictError otherwise), freezes the config
+ * (BR-024), creates the initial Sorte and every
  * `game_rounds` window, moves the room to RUNNING and the participations to ACTIVE.
  */
 export interface EngineV2StartPort {
+  /** The seed sealed when the position selection started (TASK-075); null if it never ran. */
+  loadSealedSeed(roomId: string): Promise<{ seedHex: string; commitmentHash: string } | null>;
   listConfirmedSeats(roomId: string): Promise<readonly RoomStartSeat[]>;
   commitStart(input: CommitRoomStartInput): Promise<GameRoom>;
 }
