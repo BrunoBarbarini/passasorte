@@ -4,15 +4,19 @@ import type { PositionSelectionPort } from "../../ports/position-selection.port.
 import { NotFoundError } from "../../errors.js";
 import {
   buildSelectionState,
-  currentPickDeadline,
+  currentPickWindow,
   toValidationError,
+  windowClosedPayload,
+  windowOpenedEvents,
 } from "./position-selection.shared.js";
 
 /**
- * Absent picker (BR-053): when a turn expires the server allocates free positions at random
- * from the sealed seed (uniform among the free ones: ASSUMPTION, T-14). Never runs while the
- * turn is still open (DECISION-07). Safe to call repeatedly and from several workers: the
- * database transaction rejects a stale decision with a ConflictError.
+ * Absent picker (DECISION-27..30, BR-053): when a window expires the server allocates, at
+ * random among the positions still free, exactly the positions the participant bought, from the
+ * sealed seed. Never runs while the window is open, never creates positions or takes another
+ * participant's (DECISION-28), never moves the participant in the queue (DECISION-33).
+ * Idempotent and safe from several workers: the transaction locks the room and rejects a stale
+ * decision with a ConflictError, so a manual confirmation and the timeout can never both win.
  */
 export class AutoAllocateExpiredPicksUseCase {
   constructor(
@@ -32,7 +36,8 @@ export class AutoAllocateExpiredPicksUseCase {
     for (;;) {
       const snapshot = await this.selection.loadSnapshot(room.id);
       const now = this.clock();
-      if (now < currentPickDeadline(room, snapshot)) return allocated;
+      const window = currentPickWindow(room, snapshot);
+      if (now < window.closesAt) return allocated;
       const seed = await this.selection.loadSealedSeed(room.id);
       if (!seed) throw new NotFoundError("Seed", room.id);
 
@@ -40,6 +45,10 @@ export class AutoAllocateExpiredPicksUseCase {
         const state = buildSelectionState(room, snapshot);
         const picker = gameV2.currentPicker(state);
         if (!picker) return allocated;
+        const entry = snapshot.entries.find(
+          (candidate) => candidate.participationId === picker.participantId,
+        );
+        if (!entry) return allocated;
         const next = gameV2.autoAllocatePositions(state, picker.participantId, seed.seedHex);
         const pick = next.picks[next.picks.length - 1];
         if (!pick) return allocated;
@@ -49,14 +58,44 @@ export class AutoAllocateExpiredPicksUseCase {
           positions: pick.positions,
           kind: "AUTOMATIC",
           pickedAt: now,
+          window: {
+            entrySequence: picker.entrySequence,
+            openedAt: window.openedAt,
+            closesAt: window.closesAt,
+          },
           expectedPickCount: snapshot.assignments.length,
           events: [
             {
               aggregateType: "Participation",
               aggregateId: pick.participantId,
-              eventType: "positions.auto_allocated",
-              payload: { roomId: room.id, participationId: pick.participantId },
+              eventType: "position_selection.timed_out",
+              payload: {
+                userId: entry.userId,
+                roomId: room.id,
+                campaignId: room.campaignId,
+                participationId: pick.participantId,
+                entrySequence: picker.entrySequence,
+              },
             },
+            {
+              aggregateType: "Participation",
+              aggregateId: pick.participantId,
+              eventType: "positions.auto_allocated",
+              payload: {
+                ...windowClosedPayload({
+                  room,
+                  userId: entry.userId,
+                  participationId: pick.participantId,
+                  entrySequence: picker.entrySequence,
+                  positions: pick.positions,
+                  selectionType: "AUTOMATIC",
+                  window,
+                  completedAt: now,
+                }),
+                automaticSelectionReason: "TIMEOUT",
+              },
+            },
+            ...windowOpenedEvents(room, snapshot, next, now),
           ],
         });
         allocated += 1;

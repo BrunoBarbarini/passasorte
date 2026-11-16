@@ -8,6 +8,7 @@ import { useAuth } from "../context/auth-context.js";
 import { Button } from "../components/Button.js";
 import { Card } from "../components/Card.js";
 import { ScreenContainer } from "../components/ScreenContainer.js";
+import { formatSeconds } from "../lib/use-server-clock.js";
 import { colors, spacing, typography } from "../theme/tokens.js";
 
 type Props = NativeStackScreenProps<RootStackParamList, "RoomEntry">;
@@ -72,6 +73,17 @@ export function RoomEntryScreen({ route, navigation }: Props): React.JSX.Element
           Escolha seu pacote. As posições na barra são escolhidas depois que as entradas fecharem,
           por ordem de entrada: quem entra primeiro escolhe primeiro.
         </Text>
+        {/* DECISION-31: the absence rule is shown BEFORE the participant joins, not only in the terms. */}
+        <Card accentColor={colors.amber} style={styles.card}>
+          <Text style={styles.cardTitle}>Quando for a sua vez</Text>
+          <Text style={styles.cardLine}>
+            {room?.positionSelectionConfig
+              ? `Você terá ${formatSeconds(room.positionSelectionConfig.selectionWindowSeconds)} para escolher suas posições. `
+              : ""}
+            Se você não estiver disponível na sua vez, suas posições serão escolhidas
+            automaticamente entre as que estiverem livres. Você não perde a participação.
+          </Text>
+        </Card>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {existing ? (
           <Card accentColor={colors.aqua} style={styles.card}>

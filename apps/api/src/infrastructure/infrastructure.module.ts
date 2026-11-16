@@ -12,7 +12,10 @@ import { DevAuthAdapter } from "./auth/dev-auth.adapter.js";
 import { PrismaParticipantGameStateRepository } from "./prisma/repositories/participant-game-state.repository.js";
 import { PrismaPositionSelectionRepository } from "./prisma/repositories/position-selection.repository.js";
 import { PrismaEngineV2StartRepository } from "./prisma/repositories/engine-v2-start.repository.js";
-import { PrismaRoomRepository } from "./prisma/repositories/room.repository.js";
+import {
+  PrismaRoomRepository,
+  PrismaRoomSelectionConfigRepository,
+} from "./prisma/repositories/room.repository.js";
 import { PrismaPositionHoldRepository } from "./prisma/repositories/position-hold.repository.js";
 import { PrismaParticipationRepository } from "./prisma/repositories/participation.repository.js";
 import { PrismaIdempotencyRepository } from "./prisma/repositories/idempotency.repository.js";
@@ -54,6 +57,7 @@ import {
   PILOT_POLICY,
   POSITION_HOLD_REPOSITORY,
   ROOM_REPOSITORY,
+  ROOM_SELECTION_CONFIG_REPOSITORY,
   SECURITY_CONFIG,
   USER_REPOSITORY,
 } from "../common/tokens.js";
@@ -123,6 +127,7 @@ const analyticsPortProvider: Provider = {
     { provide: OUTBOX_PORT, useClass: PrismaOutboxRepository },
     { provide: OUTBOX_READER_PORT, useExisting: OUTBOX_PORT },
     { provide: ROOM_REPOSITORY, useClass: PrismaRoomRepository },
+    { provide: ROOM_SELECTION_CONFIG_REPOSITORY, useClass: PrismaRoomSelectionConfigRepository },
     { provide: POSITION_HOLD_REPOSITORY, useClass: PrismaPositionHoldRepository },
     { provide: PARTICIPATION_REPOSITORY, useClass: PrismaParticipationRepository },
     { provide: IDEMPOTENCY_PORT, useClass: PrismaIdempotencyRepository },
@@ -152,6 +157,7 @@ const analyticsPortProvider: Provider = {
     OUTBOX_PORT,
     OUTBOX_READER_PORT,
     ROOM_REPOSITORY,
+    ROOM_SELECTION_CONFIG_REPOSITORY,
     POSITION_HOLD_REPOSITORY,
     PARTICIPATION_REPOSITORY,
     IDEMPOTENCY_PORT,

@@ -12,6 +12,7 @@ export const AUDIT_LOG_PORT = Symbol("AuditLogPort");
 export const OUTBOX_PORT = Symbol("OutboxPort");
 export const OUTBOX_READER_PORT = Symbol("OutboxReaderPort");
 export const ROOM_REPOSITORY = Symbol("RoomRepository");
+export const ROOM_SELECTION_CONFIG_REPOSITORY = Symbol("RoomSelectionConfigRepository");
 export const POSITION_HOLD_REPOSITORY = Symbol("PositionHoldRepository");
 export const PARTICIPATION_REPOSITORY = Symbol("ParticipationRepository");
 export const IDEMPOTENCY_PORT = Symbol("IdempotencyPort");

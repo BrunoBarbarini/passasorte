@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Inject, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Inject, Param, Post, Put, UseGuards } from "@nestjs/common";
 import {
   CreateRoomSchema,
   HoldPositionsSchema,
+  PositionSelectionConfigSchema,
   StartPositionSelectionSchema,
   StartRoomV2Schema,
 } from "@passasorte/api-contract";
@@ -12,13 +13,16 @@ import {
   StartRoomUseCase,
   StartRoomV2UseCase,
   StartPositionSelectionUseCase,
+  SetPositionSelectionConfigUseCase,
   buildSelectionState,
-  currentPickDeadline,
+  currentPickWindow,
   NotFoundError,
   type PositionSelectionPort,
   type EngineV2StartPort,
   HoldPositionsUseCase,
+  type AuditLogPort,
   type CampaignRepository,
+  type RoomSelectionConfigRepository,
   type GameRunRepository,
   type OutboxPort,
   type ParticipationRepository,
@@ -37,8 +41,10 @@ import { CurrentUser } from "../../common/auth/current-user.decorator.js";
 import { Roles } from "../../common/auth/roles.decorator.js";
 import { RolesGuard } from "../../common/auth/roles.guard.js";
 import {
+  AUDIT_LOG_PORT,
   CAMPAIGN_REPOSITORY,
   ENGINE_V2_START_PORT,
+  ROOM_SELECTION_CONFIG_REPOSITORY,
   POSITION_SELECTION_PORT,
   GAME_RUN_REPOSITORY,
   OUTBOX_PORT,
@@ -57,9 +63,14 @@ export interface PositionSelectionView {
   /** Positions already owned: needed to choose among the free ones (DECISION-07). */
   readonly takenPositions: readonly number[];
   readonly pickWindowMs: number | null;
+  /** DECISION-23/26: the window each participant gets; known as soon as the operator configures it. */
+  readonly selectionWindowSeconds: number | null;
+  /** DECISION-25/26: UX marks (remaining seconds) frozen when the selection starts. */
+  readonly warningThresholdSeconds: readonly number[];
   readonly currentTurn: {
     readonly participationId: string;
     readonly positionCount: number;
+    readonly opensAt: string;
     readonly deadline: string;
   } | null;
   readonly picked?: number;
@@ -88,6 +99,9 @@ export class RoomsController {
     @Inject(PILOT_POLICY) private readonly pilotPolicy: PilotPolicy,
     @Inject(ENGINE_V2_START_PORT) private readonly engineV2Start: EngineV2StartPort,
     @Inject(POSITION_SELECTION_PORT) private readonly selection: PositionSelectionPort,
+    @Inject(ROOM_SELECTION_CONFIG_REPOSITORY)
+    private readonly selectionConfigStore: RoomSelectionConfigRepository,
+    @Inject(AUDIT_LOG_PORT) private readonly auditLog: AuditLogPort,
   ) {}
 
   @Post("campaigns/:campaignId/rooms")
@@ -112,7 +126,27 @@ export class RoomsController {
         priceMinorUnits: pkg.priceMinorUnits,
       })),
       operationsConfig: input.operationsConfig,
+      ...(input.positionSelectionConfig
+        ? { positionSelectionConfig: input.positionSelectionConfig }
+        : {}),
     });
+  }
+
+  /** DECISION-23/36: the operator sets how long each participant has to choose; no default exists. */
+  @Put("rooms/:roomId/position-selection-config")
+  @UseGuards(RolesGuard)
+  @Roles("OPERATOR", "ADMIN")
+  setPositionSelectionConfig(
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<GameRoom> {
+    const config = parseWithSchema(PositionSelectionConfigSchema, body);
+    return new SetPositionSelectionConfigUseCase(
+      this.roomRepository,
+      this.selectionConfigStore,
+      this.auditLog,
+    ).execute({ roomId, config, actorUserId: user.user.id });
   }
 
   @Post("rooms/:roomId/open")
@@ -140,15 +174,14 @@ export class RoomsController {
     ).execute({ roomId });
   }
 
-  /** TASK-075: ENTRY_LOCKED -> POSITION_SELECTION. The operator sets the pick window. */
+  /** TASK-075: ENTRY_LOCKED -> POSITION_SELECTION. The window comes from the room config (DECISION-23). */
   @Post("rooms/:roomId/start-selection")
   @UseGuards(RolesGuard)
   @Roles("OPERATOR", "ADMIN")
   startSelection(@Param("roomId") roomId: string, @Body() body: unknown): Promise<GameRoom> {
-    const input = parseWithSchema(StartPositionSelectionSchema, body);
+    parseWithSchema(StartPositionSelectionSchema, body ?? {});
     return new StartPositionSelectionUseCase(this.roomRepository, this.selection).execute({
       roomId,
-      pickWindowMs: input.pickWindowMs,
     });
   }
 
@@ -164,23 +197,29 @@ export class RoomsController {
         boardSize: null,
         takenPositions: [],
         pickWindowMs: null,
+        selectionWindowSeconds: room.positionSelectionConfig?.selectionWindowSeconds ?? null,
+        warningThresholdSeconds: room.positionSelectionConfig?.warningThresholdSeconds ?? [],
         currentTurn: null,
       };
     }
     const snapshot = await this.selection.loadSnapshot(roomId);
     const state = buildSelectionState(room, snapshot);
     const picker = room.status === "POSITION_SELECTION" ? gameV2.currentPicker(state) : null;
+    const window = currentPickWindow(room, snapshot);
     return {
       serverTime: new Date().toISOString(),
       status: room.status,
       boardSize: room.positionSelection.boardSize,
       takenPositions: snapshot.assignments.flatMap((a) => a.positions).sort((x, y) => x - y),
       pickWindowMs: room.positionSelection.pickWindowMs,
+      selectionWindowSeconds: room.positionSelection.pickWindowMs / 1000,
+      warningThresholdSeconds: room.positionSelection.warningThresholdSeconds ?? [],
       currentTurn: picker
         ? {
             participationId: picker.participantId,
             positionCount: picker.positionCredits,
-            deadline: currentPickDeadline(room, snapshot).toISOString(),
+            opensAt: window.openedAt.toISOString(),
+            deadline: window.closesAt.toISOString(),
           }
         : null,
       picked: snapshot.assignments.length,

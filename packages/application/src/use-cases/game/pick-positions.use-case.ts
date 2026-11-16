@@ -5,8 +5,10 @@ import type { PositionSelectionPort } from "../../ports/position-selection.port.
 import { DomainError, NotFoundError } from "../../errors.js";
 import {
   buildSelectionState,
-  currentPickDeadline,
+  currentPickWindow,
   toValidationError,
+  windowClosedPayload,
+  windowOpenedEvents,
 } from "./position-selection.shared.js";
 
 export interface PickPositionsInput {
@@ -47,6 +49,12 @@ export class PickPositionsUseCase {
     const snapshot = await this.selection.loadSnapshot(room.id);
     const mine = snapshot.assignments.find((a) => a.participationId === participation.id);
     if (mine) {
+      // DECISION-27/33: once the server chose for an absent participant, a late manual request is refused.
+      if (mine.kind === "AUTOMATIC") {
+        throw new DomainError(
+          "O tempo acabou e suas posições já foram escolhidas automaticamente; elas não podem ser trocadas.",
+        );
+      }
       const same =
         mine.positions.length === input.positions.length &&
         [...mine.positions].sort((a, b) => a - b).join() ===
@@ -56,37 +64,56 @@ export class PickPositionsUseCase {
     }
 
     const now = this.clock();
-    if (now >= currentPickDeadline(room, snapshot)) {
+    const window = currentPickWindow(room, snapshot);
+    if (now >= window.closesAt) {
       throw new DomainError(
         "O tempo desta escolha acabou; o servidor sorteia posições livres para quem não escolheu.",
       );
     }
 
+    const entry = snapshot.entries.find(
+      (candidate) => candidate.participationId === participation.id,
+    );
+    let nextState: gameV2.PositionSelectionState;
+    let entrySequence: number;
     try {
       const state = buildSelectionState(room, snapshot);
-      gameV2.pickPositions(state, participation.id, input.positions);
+      const picker = gameV2.currentPicker(state);
+      entrySequence = picker?.participantId === participation.id ? picker.entrySequence : 0;
+      nextState = gameV2.pickPositions(state, participation.id, input.positions);
     } catch (error) {
       throw toValidationError(error);
     }
-
+    const positions = [...input.positions].sort((a, b) => a - b);
     const result = await this.selection.commitPick({
       roomId: room.id,
       participationId: participation.id,
-      positions: [...input.positions].sort((a, b) => a - b),
+      positions,
       kind: "MANUAL",
       pickedAt: now,
+      window: { entrySequence, openedAt: window.openedAt, closesAt: window.closesAt },
       expectedPickCount: snapshot.assignments.length,
       events: [
         {
           aggregateType: "Participation",
           aggregateId: participation.id,
           eventType: "positions.picked",
-          payload: { roomId: room.id, participationId: participation.id, kind: "MANUAL" },
+          payload: windowClosedPayload({
+            room,
+            userId: entry?.userId ?? participation.userId,
+            participationId: participation.id,
+            entrySequence,
+            positions,
+            selectionType: "MANUAL",
+            window,
+            completedAt: now,
+          }),
         },
+        ...windowOpenedEvents(room, snapshot, nextState, now),
       ],
     });
     return {
-      positions: [...input.positions].sort((a, b) => a - b),
+      positions,
       completed: result.completed,
       idempotentReplay: false,
     };

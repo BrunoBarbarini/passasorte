@@ -41,12 +41,25 @@ export const ParticipationPackageInputSchema = z.object({
   priceMinorUnits: z.number().int().nonnegative().optional(),
 });
 
+/**
+ * DECISION-23/36: the time each participant has to choose positions is configured per room;
+ * there is no default. Warning marks are UX parameters (DECISION-25/35).
+ */
+export const PositionSelectionConfigSchema = z.object({
+  selectionWindowSeconds: z.number().int().min(1),
+  warningThresholdSeconds: z.array(z.number().int().min(1)).optional(),
+  upcomingTurnThresholds: z.array(z.number().int().min(1)).optional(),
+  autoAssignOnTimeout: z.literal(true),
+});
+export type PositionSelectionConfigBody = z.infer<typeof PositionSelectionConfigSchema>;
+
 export const CreateRoomSchema = z.object({
   capacity: z.number().int().positive(),
   gameConfig: GameConfigSnapshotSchema,
   holdTtlMs: z.number().int().positive(),
   participationPackages: z.array(ParticipationPackageInputSchema).min(1),
   operationsConfig: RoomOperationsConfigSchema,
+  positionSelectionConfig: PositionSelectionConfigSchema.optional(),
 });
 export type CreateRoomBody = z.infer<typeof CreateRoomSchema>;
 
@@ -76,8 +89,6 @@ export const StartRoomV2Schema = z.object({
 });
 export type StartRoomV2Body = z.infer<typeof StartRoomV2Schema>;
 
-/** TASK-075: the operator chooses the pick window per room; there is no default (T-14, BR-068). */
-export const StartPositionSelectionSchema = z.object({
-  pickWindowMs: z.number().int().min(1),
-});
+/** TASK-075: the window comes from the room's position-selection config (DECISION-23); no body. */
+export const StartPositionSelectionSchema = z.object({});
 export type StartPositionSelectionBody = z.infer<typeof StartPositionSelectionSchema>;

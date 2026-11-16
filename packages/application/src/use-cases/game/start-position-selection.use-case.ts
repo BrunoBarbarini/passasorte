@@ -1,14 +1,22 @@
-import { assertRoomTransition, commitRandomSeed, generateRandomSeed } from "@passasorte/domain";
+import {
+  assertRoomTransition,
+  commitRandomSeed,
+  generateRandomSeed,
+  type gameV2,
+} from "@passasorte/domain";
 import type { GameRoom } from "@passasorte/domain";
 import type { RoomRepository } from "../../ports/room-repository.port.js";
 import type { PositionSelectionPort } from "../../ports/position-selection.port.js";
 import { DomainError, NotFoundError, ValidationError } from "../../errors.js";
-import { buildSelectionState, toValidationError } from "./position-selection.shared.js";
+import { validatePositionSelectionConfig } from "../room/validate-position-selection-config.js";
+import {
+  buildSelectionState,
+  toValidationError,
+  windowOpenedEvents,
+} from "./position-selection.shared.js";
 
 export interface StartPositionSelectionInput {
   readonly roomId: string;
-  /** Chosen by the operator per room; no default exists (T-14, BR-068). */
-  readonly pickWindowMs: number;
 }
 
 /**
@@ -27,11 +35,6 @@ export class StartPositionSelectionUseCase {
   ) {}
 
   async execute(input: StartPositionSelectionInput): Promise<GameRoom> {
-    if (!Number.isSafeInteger(input.pickWindowMs) || input.pickWindowMs < 1) {
-      throw new ValidationError("O tempo de cada escolha deve ser um número inteiro positivo.", {
-        field: "pickWindowMs",
-      });
-    }
     const room = await this.rooms.findById(input.roomId);
     if (!room) throw new NotFoundError("GameRoom", input.roomId);
     if (room.status !== "ENTRY_LOCKED") {
@@ -41,20 +44,48 @@ export class StartPositionSelectionUseCase {
     }
     assertRoomTransition(room.status, "POSITION_SELECTION");
 
+    // DECISION-23: the window is the room's own setting; there is no default (BR-068).
+    const config = room.positionSelectionConfig;
+    if (!config) {
+      throw new ValidationError(
+        "Defina o tempo de escolha das posições da sala antes de iniciar a seleção.",
+        { field: "positionSelectionConfig" },
+      );
+    }
+    validatePositionSelectionConfig(config);
+    const pickWindowMs = config.selectionWindowSeconds * 1000;
+
     const snapshot = await this.selection.loadSnapshot(room.id);
-    let boardSize: number;
+    let state: gameV2.PositionSelectionState;
     try {
-      boardSize = buildSelectionState(room, snapshot).size;
+      state = buildSelectionState(room, snapshot);
     } catch (error) {
       throw toValidationError(error);
     }
+    const boardSize = state.size;
+    const startedAt = this.clock();
+    const firstWindow = windowOpenedEvents(
+      {
+        ...room,
+        positionSelection: { pickWindowMs, startedAt: startedAt.toISOString(), boardSize },
+      },
+      snapshot,
+      state,
+      startedAt,
+    );
 
     const seedHex = this.newSeed();
     return this.selection.commitSelectionStart({
       roomId: room.id,
-      pickWindowMs: input.pickWindowMs,
+      pickWindowMs,
+      ...(config.warningThresholdSeconds
+        ? { warningThresholdSeconds: config.warningThresholdSeconds }
+        : {}),
+      ...(config.upcomingTurnThresholds
+        ? { upcomingTurnThresholds: config.upcomingTurnThresholds }
+        : {}),
       boardSize,
-      startedAt: this.clock(),
+      startedAt,
       seedHex,
       commitmentHash: commitRandomSeed(seedHex).commitmentHash,
       events: [
@@ -62,8 +93,9 @@ export class StartPositionSelectionUseCase {
           aggregateType: "GameRoom",
           aggregateId: room.id,
           eventType: "selection.started",
-          payload: { roomId: room.id, boardSize, pickWindowMs: input.pickWindowMs },
+          payload: { roomId: room.id, boardSize, pickWindowMs },
         },
+        ...firstWindow,
       ],
     });
   }

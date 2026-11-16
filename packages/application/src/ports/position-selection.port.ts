@@ -4,6 +4,8 @@ import type { PublishOutboxEventInput } from "./outbox.port.js";
 /** A CONFIRMED participation waiting to choose its positions (TASK-075). */
 export interface SelectionEntry {
   readonly participationId: string;
+  /** Owner of the participation: addressee of the selection notifications. */
+  readonly userId: string;
   /** Pick priority (DECISION-08); null = not assigned yet, which blocks the selection. */
   readonly entrySequence: number | null;
   readonly packageId: string;
@@ -24,6 +26,9 @@ export interface SelectionSnapshot {
 export interface CommitSelectionStartInput {
   readonly roomId: string;
   readonly pickWindowMs: number;
+  /** DECISION-25/35: UX marks copied from the room's config and frozen with the selection. */
+  readonly warningThresholdSeconds?: readonly number[];
+  readonly upcomingTurnThresholds?: readonly number[];
   readonly boardSize: number;
   readonly startedAt: Date;
   readonly seedHex: string;
@@ -37,6 +42,12 @@ export interface CommitPickInput {
   readonly positions: readonly number[];
   readonly kind: "MANUAL" | "AUTOMATIC";
   readonly pickedAt: Date;
+  /** DECISION-34: audit of the selection window this pick closes. */
+  readonly window: {
+    readonly entrySequence: number;
+    readonly openedAt: Date;
+    readonly closesAt: Date;
+  };
   /** Optimistic guard: how many participations had already picked when the caller decided. */
   readonly expectedPickCount: number;
   readonly events: readonly PublishOutboxEventInput[];
@@ -59,4 +70,31 @@ export interface PositionSelectionPort {
    */
   commitPick(input: CommitPickInput): Promise<{ readonly completed: boolean }>;
   listRoomIdsInSelection(): Promise<readonly string[]>;
+  /**
+   * DECISION-25/35 (idempotent): records that a time/turn notice was sent and, only when it is
+   * new, publishes `event` in the same transaction. Returns false when it already existed
+   * (retries and parallel workers never duplicate a notice). `event: null` only records.
+   */
+  recordTurnNotice(input: RecordTurnNoticeInput): Promise<boolean>;
+  /** DECISION-34: the audit row of a participation's selection window, if it already closed. */
+  loadWindowRecord(participationId: string): Promise<SelectionWindowRecord | null>;
+}
+
+export interface RecordTurnNoticeInput {
+  readonly roomId: string;
+  readonly participationId: string;
+  readonly kind: "TURN_WARNING" | "TURN_APPROACHING";
+  readonly threshold: number;
+  readonly event: PublishOutboxEventInput | null;
+}
+
+export interface SelectionWindowRecord {
+  readonly participationId: string;
+  readonly entrySequence: number;
+  readonly windowOpenedAt: Date;
+  readonly windowClosesAt: Date;
+  readonly selectionType: "MANUAL" | "AUTOMATIC";
+  readonly selectedPositions: readonly number[];
+  readonly automaticSelectionReason: "TIMEOUT" | null;
+  readonly selectionCompletedAt: Date;
 }

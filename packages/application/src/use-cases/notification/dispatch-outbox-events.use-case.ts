@@ -31,11 +31,57 @@ function roomIdOf(payload: Record<string, unknown>): string {
   return typeof payload.roomId === "string" ? payload.roomId : "";
 }
 
+function pluralize(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
+/** "1 minuto", "1 minuto e 30 segundos", "45 segundos" (DECISION-25 copy). */
+function formatRemainingTime(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (minutes === 0) return pluralize(seconds, "segundo", "segundos");
+  const minutesText = pluralize(minutes, "minuto", "minutos");
+  return seconds === 0
+    ? minutesText
+    : `${minutesText} e ${pluralize(seconds, "segundo", "segundos")}`;
+}
+
+function numberOf(payload: Record<string, unknown>, key: string): number {
+  const value = payload[key];
+  return typeof value === "number" ? value : 0;
+}
+
+function positionsOf(payload: Record<string, unknown>): string {
+  const value = payload.positions;
+  return Array.isArray(value) ? value.join(", ") : "";
+}
+
 const NOTIFICATION_COPY_BY_EVENT_TYPE: Record<string, CopyResolver> = {
   "participation.won": (payload) => ({
     title: "Você ganhou!",
     body: `Sua participação na sala ${roomIdOf(payload)} foi sorteada.`,
   }),
+  // DECISION-32: tell the participant what the server chose for them.
+  "positions.auto_allocated": (payload) => ({
+    title: "Posições escolhidas automaticamente",
+    body: `Como você não concluiu sua escolha a tempo, selecionamos suas posições automaticamente: ${positionsOf(payload)}.`,
+  }),
+  // DECISION-25: warn before the window ends.
+  "position_selection.turn_warning": (payload) => ({
+    title: "Sua vez de escolher está terminando",
+    body: `Você ainda tem ${formatRemainingTime(numberOf(payload, "thresholdSeconds"))} para escolher suas posições.`,
+  }),
+  // DECISION-35: warn that the turn is approaching.
+  "position_selection.turn_approaching": (payload) => {
+    const ahead = numberOf(payload, "participantsAhead");
+    return {
+      title: "Sua vez de escolher posições está chegando",
+      body:
+        ahead === 1
+          ? "Falta 1 participante para sua vez de escolher posições."
+          : `Faltam ${ahead} participantes para sua vez de escolher posições.`,
+    };
+  },
   "participation.not_won": (payload) => ({
     title: "Resultado disponível",
     body: `O resultado da sala ${roomIdOf(payload)} já está disponível.`,
@@ -57,6 +103,12 @@ const OUTBOX_EVENT_TYPE_TO_ANALYTICS_EVENT: Partial<Record<string, AnalyticsEven
   "position.hold_failed": "position_hold_failed",
   "participation.started": "participation_started",
   "participation.confirmed": "participation_confirmed",
+  "position_selection.window_opened": "position_selection_window_opened",
+  "position_selection.turn_warning": "position_selection_warning_sent",
+  "position_selection.turn_approaching": "position_selection_warning_sent",
+  "positions.picked": "position_selection_submitted",
+  "position_selection.timed_out": "position_selection_timed_out",
+  "positions.auto_allocated": "position_selection_auto_assigned",
   "movement.accepted": "movement_accepted",
   "movement.rejected": "movement_rejected",
   "participation.final_plan_submitted": "final_plan_submitted",

@@ -29,6 +29,14 @@ export interface LatestSubmission {
   readonly roundNo: number;
 }
 
+/** DECISION-32/34: how the participant's positions were chosen; null while they are still pending. */
+export interface SelectionWindowInfo {
+  readonly type: "MANUAL" | "AUTOMATIC";
+  readonly windowOpenedAt: Date;
+  readonly windowClosesAt: Date;
+  readonly completedAt: Date;
+}
+
 /** Read side of the participant's live game (TASK-075 follow-up, mobile). */
 export interface ParticipantGameStatePort {
   /** null when the room never started Engine V2. */
@@ -38,6 +46,7 @@ export interface ParticipantGameStatePort {
     roundNo: number,
     participationId: string,
   ): Promise<LatestSubmission | null>;
+  loadSelectionWindow(participationId: string): Promise<SelectionWindowInfo | null>;
   /** Only meaningful once the game completed; null before. */
   loadFinalResult(roomId: string): Promise<{ readonly winningPositions: readonly number[] } | null>;
 }

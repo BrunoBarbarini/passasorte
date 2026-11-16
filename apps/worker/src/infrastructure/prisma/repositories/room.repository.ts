@@ -9,6 +9,7 @@ import type {
   GameConfigSnapshot,
   GameRoom,
   PositionSelectionConfig,
+  PositionSelectionRoomConfig,
   ParticipationPackage,
   RoomOperationsConfig,
   RoomStatus,
@@ -48,6 +49,8 @@ export function toDomainRoom(row: PrismaGameRoom): GameRoom {
     operationsConfig: row.operationsConfig as unknown as RoomOperationsConfig,
     engineV2Config: row.engineV2Config as unknown as gameV2.GameConfigV2 | null,
     positionSelection: row.positionSelection as unknown as PositionSelectionConfig | null,
+    positionSelectionConfig:
+      row.positionSelectionConfig as unknown as PositionSelectionRoomConfig | null,
     status: row.status,
     createdAt: row.createdAt,
     finalLockedAt: row.finalLockedAt,

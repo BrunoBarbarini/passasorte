@@ -56,6 +56,7 @@ export * from "./game/game-simulator.js";
 export * as gameV2 from "./game/v2/index.js";
 export * from "./room/room-state-machine.js";
 export * from "./room/room.entity.js";
+export * from "./room/position-selection-config.js";
 export * from "./room/position-hold.entity.js";
 export * from "./participation/participation-state-machine.js";
 export * from "./participation/participation.entity.js";

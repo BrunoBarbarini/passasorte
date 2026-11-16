@@ -26,6 +26,13 @@ export interface ParticipantGameStateView {
   } | null;
   /** The action currently counted for the open round (the last one sent, T-33). */
   readonly myAction: { readonly kind: string; readonly credits: number } | null;
+  /** DECISION-32: manual or automatic (timeout) choice; null until the positions were chosen. */
+  readonly positionSelection: {
+    readonly type: "MANUAL" | "AUTOMATIC";
+    readonly windowOpenedAt: string;
+    readonly windowClosesAt: string;
+    readonly completedAt: string;
+  } | null;
   /** Only after the game completed. */
   readonly result: { readonly won: boolean; readonly winningPositions: readonly number[] } | null;
 }
@@ -67,8 +74,22 @@ export class GetParticipantGameStateUseCase {
       maxMovementsPerRound: null as number | null,
       round: null,
       myAction: null,
+      positionSelection: null as ParticipantGameStateView["positionSelection"],
       result: null,
     } satisfies ParticipantGameStateView;
+
+    const selectionWindow =
+      participation.positions.length > 0
+        ? await this.game.loadSelectionWindow(participation.id)
+        : null;
+    if (selectionWindow) {
+      base.positionSelection = {
+        type: selectionWindow.type,
+        windowOpenedAt: selectionWindow.windowOpenedAt.toISOString(),
+        windowClosesAt: selectionWindow.windowClosesAt.toISOString(),
+        completedAt: selectionWindow.completedAt.toISOString(),
+      };
+    }
 
     const data = await this.game.loadRoomGameData(room.id);
     if (!data) return base;

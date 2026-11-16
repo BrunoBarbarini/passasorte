@@ -4,11 +4,16 @@ import type {
   GameConfigSnapshot,
   GameRoom,
   PositionSelectionConfig,
+  PositionSelectionRoomConfig,
   ParticipationPackage,
   RoomOperationsConfig,
   RoomStatus,
 } from "@passasorte/domain";
-import type { CreateRoomInput, RoomRepository } from "@passasorte/application";
+import type {
+  CreateRoomInput,
+  RoomRepository,
+  RoomSelectionConfigRepository,
+} from "@passasorte/application";
 import { Prisma, type GameRoom as PrismaGameRoom } from "@prisma/client";
 import { PrismaService } from "../prisma.service.js";
 import { resolveEligibilityRules } from "../../eligibility/eligibility-rule-registry.js";
@@ -55,6 +60,8 @@ export function toDomainRoom(row: PrismaGameRoom): GameRoom {
     operationsConfig: row.operationsConfig as unknown as RoomOperationsConfig,
     engineV2Config: row.engineV2Config as unknown as gameV2.GameConfigV2 | null,
     positionSelection: row.positionSelection as unknown as PositionSelectionConfig | null,
+    positionSelectionConfig:
+      row.positionSelectionConfig as unknown as PositionSelectionRoomConfig | null,
     status: row.status,
     createdAt: row.createdAt,
     finalLockedAt: row.finalLockedAt,
@@ -83,6 +90,12 @@ export class PrismaRoomRepository implements RoomRepository {
           toStoredPackage,
         ) as unknown as Prisma.InputJsonValue,
         operationsConfig: input.operationsConfig as unknown as Prisma.InputJsonValue,
+        ...(input.positionSelectionConfig
+          ? {
+              positionSelectionConfig:
+                input.positionSelectionConfig as unknown as Prisma.InputJsonValue,
+            }
+          : {}),
       },
     });
     return toDomainRoom(row);
@@ -111,5 +124,19 @@ export class PrismaRoomRepository implements RoomRepository {
   async listByStatus(status: RoomStatus): Promise<readonly GameRoom[]> {
     const rows = await this.prisma.gameRoom.findMany({ where: { status } });
     return rows.map(toDomainRoom);
+  }
+}
+
+/** DECISION-23/36: per-room position-selection settings (API side only). */
+@Injectable()
+export class PrismaRoomSelectionConfigRepository implements RoomSelectionConfigRepository {
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
+
+  async save(roomId: string, config: PositionSelectionRoomConfig): Promise<GameRoom> {
+    const row = await this.prisma.gameRoom.update({
+      where: { id: roomId },
+      data: { positionSelectionConfig: config as unknown as Prisma.InputJsonValue },
+    });
+    return toDomainRoom(row);
   }
 }

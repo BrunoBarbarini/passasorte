@@ -141,6 +141,18 @@ export function LiveGameScreen({ route, navigation }: Props): React.JSX.Element 
           </Card>
         ) : null}
 
+        {/* DECISION-32: tell the participant when the server chose their positions after the timeout. */}
+        {state.positionSelection?.type === "AUTOMATIC" ? (
+          <Card accentColor={colors.amber} style={styles.block}>
+            <Text style={styles.title}>Tempo encerrado</Text>
+            <Text style={styles.line}>
+              Como você não concluiu sua escolha a tempo, selecionamos suas posições
+              automaticamente, para que você não perdesse sua participação.
+            </Text>
+            <Text style={styles.line}>Suas posições: {state.positions.join(", ")}</Text>
+          </Card>
+        ) : null}
+
         {state.roomStatus === "POSITION_SELECTION" ? (
           <PositionPickPanel
             roomId={state.roomId}

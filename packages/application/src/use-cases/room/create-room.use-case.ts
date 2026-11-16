@@ -4,6 +4,7 @@ import {
   assertValidParticipationPackages,
   assertValidRoomCapacity,
   assertValidRoomOperationsConfig,
+  type PositionSelectionRoomConfig,
   hasActiveRoomCapacity,
   isMerchantAllowedInPilot,
   PILOT_ACTIVE_ROOM_STATUSES,
@@ -17,6 +18,7 @@ import {
 import type { CampaignRepository } from "../../ports/campaign-repository.port.js";
 import type { RoomRepository } from "../../ports/room-repository.port.js";
 import { ConflictError, NotFoundError } from "../../errors.js";
+import { validatePositionSelectionConfig } from "./validate-position-selection-config.js";
 
 export interface CreateRoomCommand {
   campaignId: string;
@@ -25,6 +27,7 @@ export interface CreateRoomCommand {
   holdTtlMs: number;
   participationPackages: readonly ParticipationPackage[];
   operationsConfig: RoomOperationsConfig;
+  positionSelectionConfig?: PositionSelectionRoomConfig;
 }
 
 /**
@@ -56,6 +59,9 @@ export class CreateRoomUseCase {
     assertValidHoldPolicy({ ttlMs: command.holdTtlMs });
     assertValidParticipationPackages(command.participationPackages);
     assertValidRoomOperationsConfig(command.operationsConfig);
+    if (command.positionSelectionConfig) {
+      validatePositionSelectionConfig(command.positionSelectionConfig);
+    }
 
     if (this.pilotPolicy.enabled) {
       await this.assertPilotAllowsThisRoom(command.campaignId);
@@ -68,6 +74,9 @@ export class CreateRoomUseCase {
       holdTtlMs: command.holdTtlMs,
       participationPackages: command.participationPackages,
       operationsConfig: command.operationsConfig,
+      ...(command.positionSelectionConfig
+        ? { positionSelectionConfig: command.positionSelectionConfig }
+        : {}),
     });
   }
 

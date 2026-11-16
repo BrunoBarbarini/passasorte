@@ -5,6 +5,7 @@ import {
   DispatchOutboxEventsUseCase,
   ExpireBenefitsUseCase,
   ExpirePositionHoldsUseCase,
+  NotifyPositionSelectionTurnsUseCase,
   ResolveRoundV2UseCase,
   type EngineV2ResolutionPort,
   type PositionSelectionPort,
@@ -111,6 +112,30 @@ export async function runSchedulerTick(deps: SchedulerDeps): Promise<void> {
       deps.logger.error(
         { operation: "auto_allocate_positions", roomId, err: error },
         "Failed to allocate positions",
+      );
+    }
+  }
+
+  // DECISION-25/35: warn the current picker before the window ends and the next ones that their
+  // turn is approaching. Idempotent (unique notice key); runs after the auto-allocation so the
+  // window of the participant who just became current is already open.
+  const notifyTurns = new NotifyPositionSelectionTurnsUseCase(
+    deps.roomRepository,
+    deps.positionSelection,
+  );
+  for (const roomId of await deps.positionSelection.listRoomIdsInSelection()) {
+    try {
+      const sent = await notifyTurns.execute({ roomId });
+      if (sent > 0) {
+        deps.logger.info(
+          { operation: "notify_position_selection_turns", roomId, sent },
+          "Queued position-selection notices",
+        );
+      }
+    } catch (error) {
+      deps.logger.error(
+        { operation: "notify_position_selection_turns", roomId, err: error },
+        "Failed to queue position-selection notices",
       );
     }
   }

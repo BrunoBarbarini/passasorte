@@ -307,37 +307,41 @@ enum ParticipationStatus {
 /// never a global default); `gameConfig` is the frozen snapshot from
 /// Phase 2 (BR-024).
 model GameRoom {
-  id                    String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  campaignId            String         @map("campaign_id") @db.Uuid
-  capacity              Int
-  gameConfig            Json           @map("game_config")
-  holdTtlMs             Int            @map("hold_ttl_ms")
-  participationPackages Json           @map("participation_packages")
+  id                      String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  campaignId              String         @map("campaign_id") @db.Uuid
+  capacity                Int
+  gameConfig              Json           @map("game_config")
+  holdTtlMs               Int            @map("hold_ttl_ms")
+  participationPackages   Json           @map("participation_packages")
   /// TASK-034 Scheduler pacing (finalLockGracePeriodMs) — per-room,
   /// never a global default (CLAUDE.md #56/#58). See
   /// packages/domain/src/game/room-operations-config.ts.
-  operationsConfig      Json           @map("operations_config")
-  status                GameRoomStatus @default(DRAFT)
-  createdAt             DateTime       @default(now()) @map("created_at")
+  operationsConfig        Json           @map("operations_config")
+  status                  GameRoomStatus @default(DRAFT)
+  createdAt               DateTime       @default(now()) @map("created_at")
   /// When this room entered FINAL_LOCK — used only to pace the grace
   /// period timeout, never a business rule about outcomes.
-  finalLockedAt         DateTime?      @map("final_locked_at")
-  cancelledAt           DateTime?      @map("cancelled_at")
-  cancellationReason    String?        @map("cancellation_reason")
+  finalLockedAt           DateTime?      @map("final_locked_at")
+  cancelledAt             DateTime?      @map("cancelled_at")
+  cancellationReason      String?        @map("cancellation_reason")
   /// DECISION-08: per-room counter used to assign Participation.entrySequence
   /// inside the confirming transaction (UPDATE ... RETURNING).
-  entrySequenceCounter  Int            @default(0) @map("entry_sequence_counter")
+  entrySequenceCounter    Int            @default(0) @map("entry_sequence_counter")
   /// BR-024/BR-089: GameConfigV2 frozen when the room starts ({winningZoneSize, maxMovementsPerRound}).
   /// Null for rooms created before Engine V2; round submissions are rejected for them.
-  engineV2Config        Json?          @map("engine_v2_config")
+  engineV2Config          Json?          @map("engine_v2_config")
   /// TASK-075: {pickWindowMs, startedAt, boardSize}; set when the position selection starts.
-  positionSelection     Json?          @map("position_selection")
+  positionSelection       Json?          @map("position_selection")
+  /// DECISION-23/36: per-room selection window settings; no default exists.
+  positionSelectionConfig Json?          @map("position_selection_config")
 
-  campaign            Campaign                 @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  campaign            Campaign                  @relation(fields: [campaignId], references: [id], onDelete: Restrict)
   positionHolds       PositionHold[]
   participations      Participation[]
   gameRun             GameRun?
   positionAssignments RoomPositionAssignment[]
+  selectionWindows    PositionSelectionWindow[]
+  selectionNotices    PositionSelectionNotice[]
   gameRounds          GameRound[]
   initialSorte        InitialSorteRecord?
 
@@ -389,12 +393,14 @@ model Participation {
   createdAt              DateTime            @default(now()) @map("created_at")
   updatedAt              DateTime            @updatedAt @map("updated_at")
 
-  room                GameRoom                 @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  user                User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  room                GameRoom                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Restrict)
   movementCommands    MovementCommandLog[]
   roundActions        RoundAction[]
   roundSubmissions    RoundActionSubmission[]
   positionAssignments RoomPositionAssignment[]
+  selectionWindows    PositionSelectionWindow[]
+  selectionNotices    PositionSelectionNotice[]
 
   @@unique([roomId, entrySequence])
   @@index([userId, roomId])
@@ -701,4 +707,42 @@ model RoomPositionAssignment {
   @@unique([roomId, position])
   @@index([participationId])
   @@map("room_position_assignments")
+}
+
+/// DECISION-34: audit of each selection window (append-only, trigger in SQL).
+model PositionSelectionWindow {
+  id                       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId                   String   @map("room_id") @db.Uuid
+  participationId          String   @map("participation_id") @db.Uuid
+  entrySequence            Int      @map("entry_sequence")
+  windowOpenedAt           DateTime @map("window_opened_at")
+  windowClosesAt           DateTime @map("window_closes_at")
+  selectionType            String   @map("selection_type")
+  selectedPositions        Int[]    @map("selected_positions")
+  automaticSelectionReason String?  @map("automatic_selection_reason")
+  selectionCompletedAt     DateTime @map("selection_completed_at")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  room          GameRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+
+  @@unique([roomId, participationId])
+  @@index([participationId])
+  @@map("position_selection_windows")
+}
+
+/// DECISION-25/35: idempotency record of the time/turn notices (append-only, trigger in SQL).
+model PositionSelectionNotice {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roomId          String   @map("room_id") @db.Uuid
+  participationId String   @map("participation_id") @db.Uuid
+  kind            String
+  threshold       Int
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  room          GameRoom      @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  participation Participation @relation(fields: [participationId], references: [id], onDelete: Restrict)
+
+  @@unique([roomId, participationId, kind, threshold])
+  @@map("position_selection_notices")
 }

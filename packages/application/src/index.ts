@@ -45,6 +45,8 @@ export * from "./use-cases/campaign/list-public-campaigns.use-case.js";
 
 export * from "./use-cases/room/hold-positions.use-case.js";
 export * from "./use-cases/room/create-room.use-case.js";
+export * from "./use-cases/room/set-position-selection-config.use-case.js";
+export * from "./use-cases/room/validate-position-selection-config.js";
 export * from "./use-cases/room/open-room.use-case.js";
 export * from "./use-cases/room/lock-room-entries.use-case.js";
 export * from "./use-cases/room/start-room.use-case.js";
@@ -58,9 +60,11 @@ export * from "./use-cases/game/start-position-selection.use-case.js";
 export * from "./use-cases/game/pick-positions.use-case.js";
 export * from "./use-cases/game/get-participant-game-state.use-case.js";
 export * from "./use-cases/game/auto-allocate-expired-picks.use-case.js";
+export * from "./use-cases/game/notify-position-selection-turns.use-case.js";
 export {
   buildSelectionState,
   currentPickDeadline,
+  currentPickWindow,
 } from "./use-cases/game/position-selection.shared.js";
 export * from "./use-cases/participation/set-auto-action.use-case.js";
 export * from "./use-cases/game/resolve-round-v2.use-case.js";

@@ -4,6 +4,7 @@ import type {
   LatestSubmission,
   ParticipantGameStatePort,
   RoomGameData,
+  SelectionWindowInfo,
 } from "@passasorte/application";
 import { PrismaService } from "../prisma.service.js";
 
@@ -75,6 +76,17 @@ export class PrismaParticipantGameStateRepository implements ParticipantGameStat
       orderBy: { submissionSequence: "desc" },
     });
     return row ? { kind: row.kind as gameV2.SorteDirection, credits: row.credits, roundNo } : null;
+  }
+
+  async loadSelectionWindow(participationId: string): Promise<SelectionWindowInfo | null> {
+    const row = await this.prisma.positionSelectionWindow.findFirst({ where: { participationId } });
+    if (!row) return null;
+    return {
+      type: row.selectionType === "AUTOMATIC" ? "AUTOMATIC" : "MANUAL",
+      windowOpenedAt: row.windowOpenedAt,
+      windowClosesAt: row.windowClosesAt,
+      completedAt: row.selectionCompletedAt,
+    };
   }
 
   async loadFinalResult(

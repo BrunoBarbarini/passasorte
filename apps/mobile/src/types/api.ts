@@ -75,6 +75,8 @@ export interface GameRoom {
   gameConfig: GameConfigSnapshot;
   holdTtlMs: number;
   participationPackages: ParticipationPackage[];
+  /** DECISION-23: how long each participant has to choose positions; null until the operator sets it. */
+  positionSelectionConfig?: { selectionWindowSeconds: number } | null;
   status: RoomStatus;
   createdAt: string;
   cancelledAt: string | null;
@@ -168,7 +170,16 @@ export interface PositionSelectionView {
   boardSize: number | null;
   takenPositions: number[];
   pickWindowMs: number | null;
-  currentTurn: { participationId: string; positionCount: number; deadline: string } | null;
+  /** DECISION-23/26: window each participant gets; known once the operator configures it. */
+  selectionWindowSeconds: number | null;
+  /** DECISION-25/26: UX marks (remaining seconds), frozen when the selection starts. */
+  warningThresholdSeconds: number[];
+  currentTurn: {
+    participationId: string;
+    positionCount: number;
+    opensAt: string;
+    deadline: string;
+  } | null;
   picked?: number;
   total?: number;
 }
@@ -196,6 +207,13 @@ export interface ParticipantGameState {
     phase: "UPCOMING" | "OPEN" | "RESOLVING";
   } | null;
   myAction: { kind: RoundActionKind; credits: number } | null;
+  /** DECISION-32: how the positions were chosen; AUTOMATIC = the server chose after the timeout. */
+  positionSelection: {
+    type: "MANUAL" | "AUTOMATIC";
+    windowOpenedAt: string;
+    windowClosesAt: string;
+    completedAt: string;
+  } | null;
   result: { won: boolean; winningPositions: number[] } | null;
 }
 

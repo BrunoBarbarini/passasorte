@@ -4,7 +4,9 @@ import {
   type CommitPickInput,
   type CommitSelectionStartInput,
   type PositionSelectionPort,
+  type RecordTurnNoticeInput,
   type SelectionSnapshot,
+  type SelectionWindowRecord,
 } from "@passasorte/application";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { toDomainRoom } from "./room.repository.js";
@@ -44,6 +46,7 @@ export class PrismaPositionSelectionRepository implements PositionSelectionPort 
     return {
       entries: participations.map((row) => ({
         participationId: row.id,
+        userId: row.userId,
         entrySequence: row.entrySequence,
         packageId: row.packageId,
       })),
@@ -83,6 +86,12 @@ export class PrismaPositionSelectionRepository implements PositionSelectionPort 
           status: "POSITION_SELECTION",
           positionSelection: {
             pickWindowMs: input.pickWindowMs,
+            ...(input.warningThresholdSeconds
+              ? { warningThresholdSeconds: [...input.warningThresholdSeconds] }
+              : {}),
+            ...(input.upcomingTurnThresholds
+              ? { upcomingTurnThresholds: [...input.upcomingTurnThresholds] }
+              : {}),
             startedAt: input.startedAt.toISOString(),
             boardSize: input.boardSize,
           },
@@ -125,6 +134,39 @@ export class PrismaPositionSelectionRepository implements PositionSelectionPort 
         where: { id: input.participationId },
         data: { positions: [...input.positions] },
       });
+      // DECISION-34: the audit of the window closes in the same transaction as the pick.
+      // UNIQUE(room, participation) makes a second record for the same window impossible.
+      await tx.positionSelectionWindow.create({
+        data: {
+          roomId: input.roomId,
+          participationId: input.participationId,
+          entrySequence: input.window.entrySequence,
+          windowOpenedAt: input.window.openedAt,
+          windowClosesAt: input.window.closesAt,
+          selectionType: input.kind,
+          selectedPositions: [...input.positions],
+          automaticSelectionReason: input.kind === "AUTOMATIC" ? "TIMEOUT" : null,
+          selectionCompletedAt: input.pickedAt,
+        },
+      });
+      if (input.kind === "AUTOMATIC") {
+        await tx.auditLog.create({
+          data: {
+            actorUserId: null,
+            action: "position_selection.auto_assigned",
+            entityType: "Participation",
+            entityId: input.participationId,
+            metadata: {
+              roomId: input.roomId,
+              reason: "TIMEOUT",
+              positions: [...input.positions],
+              entrySequence: input.window.entrySequence,
+              windowOpenedAt: input.window.openedAt.toISOString(),
+              windowClosesAt: input.window.closesAt.toISOString(),
+            },
+          },
+        });
+      }
       const total = await tx.participation.count({
         where: { roomId: input.roomId, status: "CONFIRMED" },
       });
@@ -143,6 +185,36 @@ export class PrismaPositionSelectionRepository implements PositionSelectionPort 
       select: { id: true },
     });
     return rooms.map((room) => room.id);
+  }
+
+  async recordTurnNotice(input: RecordTurnNoticeInput): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const inserted = await tx.$queryRaw<{ id: string }[]>`
+        insert into position_selection_notices (room_id, participation_id, kind, threshold)
+        values (${input.roomId}::uuid, ${input.participationId}::uuid, ${input.kind}, ${input.threshold})
+        on conflict (room_id, participation_id, kind, threshold) do nothing
+        returning id::text as id`;
+      if (inserted.length === 0) return false;
+      if (input.event) await this.publish(tx, [input.event]);
+      return true;
+    });
+  }
+
+  async loadWindowRecord(participationId: string): Promise<SelectionWindowRecord | null> {
+    const row = await this.prisma.positionSelectionWindow.findFirst({
+      where: { participationId },
+    });
+    if (!row) return null;
+    return {
+      participationId: row.participationId,
+      entrySequence: row.entrySequence,
+      windowOpenedAt: row.windowOpenedAt,
+      windowClosesAt: row.windowClosesAt,
+      selectionType: row.selectionType as "MANUAL" | "AUTOMATIC",
+      selectedPositions: row.selectedPositions,
+      automaticSelectionReason: row.automaticSelectionReason === "TIMEOUT" ? "TIMEOUT" : null,
+      selectionCompletedAt: row.selectionCompletedAt,
+    };
   }
 
   private async publish(

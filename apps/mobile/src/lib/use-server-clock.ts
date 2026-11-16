@@ -37,3 +37,13 @@ export function usePolling(load: () => void, intervalMs: number): void {
     return () => clearInterval(id);
   }, [load, intervalMs]);
 }
+
+/** "1 minuto", "1 minuto e 30 segundos", "45 segundos" (pt-BR copy for the selection window). */
+export function formatSeconds(totalSeconds: number): string {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+  if (minutes === 0) return plural(seconds, "segundo", "segundos");
+  const minutesText = plural(minutes, "minuto", "minutos");
+  return seconds === 0 ? minutesText : `${minutesText} e ${plural(seconds, "segundo", "segundos")}`;
+}

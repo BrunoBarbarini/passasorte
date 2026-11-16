@@ -87,6 +87,7 @@ function make(
     loadRoomGameData: async () => gameData,
     loadLatestSubmission: async (_r, roundNo, id) =>
       id === "a" ? { kind: "RIGHT", credits: 2, roundNo } : null,
+    loadSelectionWindow: async () => null,
     loadFinalResult: async () => ({ winningPositions: [51] }),
   };
   return (clock: Date) =>
